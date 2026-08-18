@@ -27,7 +27,7 @@ Beveiligd beheer van cliëntformulieren.
    pnpm dev
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000).
+4. Open [http://localhost:3000](http://localhost:3000). Het dashboard staat op `/dashboard` (Clerk-organisatie + `DATABASE_URL` vereist).
 
 ## Scripts
 

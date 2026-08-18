@@ -1,0 +1,71 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArchiveClientButton } from "@/components/archive-client-button";
+import { ClientForm } from "@/components/client-form";
+import { formatDateTime } from "@/lib/datetime";
+import { requireDashboardContext } from "@/server/auth/guard";
+import { getClient } from "@/server/clients/service";
+import { NotFoundError } from "@/server/errors";
+
+export default async function ClientDetailPage({
+  params,
+}: {
+  params: Promise<{ clientId: string }>;
+}) {
+  const tenant = await requireDashboardContext();
+  const { clientId } = await params;
+
+  let client;
+
+  try {
+    client = await getClient(tenant, clientId);
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      notFound();
+    }
+
+    throw error;
+  }
+
+  const archived = client.archivedAt != null;
+
+  return (
+    <section className="flex flex-col gap-6">
+      <div>
+        <p className="text-sm text-neutral-500">
+          <Link href="/dashboard/clients" className="hover:underline">
+            Cliënten
+          </Link>
+        </p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{client.displayName}</h1>
+        <p className="mt-1 text-neutral-600">
+          Toegevoegd {formatDateTime(client.createdAt)}
+          {archived && client.archivedAt
+            ? ` · Gearchiveerd ${formatDateTime(client.archivedAt)}`
+            : null}
+        </p>
+      </div>
+
+      {archived ? (
+        <p className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
+          Deze cliënt is gearchiveerd en kan niet meer worden gewijzigd.
+        </p>
+      ) : (
+        <>
+          <ClientForm
+            clientId={client.id}
+            defaultValues={{
+              displayName: client.displayName,
+              email: client.email,
+              phone: client.phone,
+              externalReference: client.externalReference,
+            }}
+            submitLabel="Wijzigingen opslaan"
+            cancelHref="/dashboard/clients"
+          />
+          <ArchiveClientButton clientId={client.id} />
+        </>
+      )}
+    </section>
+  );
+}

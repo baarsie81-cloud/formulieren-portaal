@@ -1,6 +1,6 @@
 # Database
 
-V1 schema for Formulieren Portaal. PostgreSQL (Neon later). Drizzle ORM. No live database is connected yet.
+This phase does **not** connect a live database at build time. Runtime uses `DATABASE_URL`. After Clerk sign-in, `requireTenant()` inserts the organization, user, and membership if they do not exist yet.
 
 The signed final PDF is the primary audit document. These tables are the register and index, not a substitute for that file.
 

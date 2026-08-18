@@ -19,7 +19,9 @@ export default function RootLayout({
     <html lang="nl">
       <body className="min-h-screen antialiased">
         {publishableKey ? (
-          <ClerkProvider publishableKey={publishableKey}>{children}</ClerkProvider>
+          <ClerkProvider publishableKey={publishableKey} afterSignOutUrl="/">
+            {children}
+          </ClerkProvider>
         ) : (
           children
         )}
