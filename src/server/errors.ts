@@ -30,3 +30,17 @@ export class ValidationError extends AppError {
     this.name = "ValidationError";
   }
 }
+
+export class StorageError extends AppError {
+  constructor(message = "Storage is not available") {
+    super(message, 503, "storage_unavailable");
+    this.name = "StorageError";
+  }
+}
+
+export class IntegrityError extends AppError {
+  constructor(message = "Stored file does not match expected hash") {
+    super(message, 409, "integrity_error");
+    this.name = "IntegrityError";
+  }
+}

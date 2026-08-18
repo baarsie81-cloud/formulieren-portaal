@@ -13,6 +13,14 @@ The signed final PDF is the primary audit document. These tables are the registe
 - Foreign keys use `ON DELETE RESTRICT`. Do not cascade-delete audit evidence.
 - No quote, price, VAT, catalog, or CRM/EPD fields.
 
+## Document templates (V1)
+
+V1 accepts only PDFs that already contain **AcroForm** fields (see [architecture.md](./architecture.md)). The PDF is designed and fielded outside Formulierendesk (Word, InDesign, Acrobat Pro, etc.). Formulierendesk reads those fields; it does not draw, convert, or invent them.
+
+- **AcroForm is required.** A PDF without invulbare AcroForm fields must be rejected at upload with a clear staff-facing message. No silent acceptance, no automatic conversion to AcroForm.
+- **`document_fields` rows** come only from extracted AcroForm metadata. Staff may adjust mapping (`value_key`, type, required, sort order), not add fields that are not in the PDF.
+- **No form builder, PDF editor, drag/drop designer, or alternative field-mapping** in V1 scope.
+
 ## Tables
 
 ### `organizations`
@@ -47,17 +55,21 @@ Minimal addressee. Not a medical record.
 
 ### `document_templates`
 
-Fixed PDF templates (not a form builder).
+Fixed PDF templates (not a form builder). The PDF bytes are immutable after upload. **V1:** the uploaded file must contain AcroForm fields; otherwise reject the upload (see [architecture.md](./architecture.md)).
 
-- `blob_key`, `sha256`, `status` `active` | `archived`
+- `blob_key`: private Blob **pathname** `{organization_id}/templates/{template_id}/{sha256}.pdf`
+- `sha256`: hex digest of the stored bytes (content version)
+- `status` `active` | `archived`
+- replacing a PDF is a new template; sent requests snapshot `blob_key` + `sha256` on `form_documents`
 
 ### `document_fields`
 
-Technical mapping of existing PDF fields: name, type, optional position, validation.
+Technical mapping of **existing** AcroForm fields from the uploaded PDF: name, type, optional position, validation. Rows are created from pdf-lib extraction at upload, not drawn in-app.
 
 - belongs to one template via composite FK `(organization_id, document_template_id)`
-- unique `(document_template_id, pdf_field_name)`
+- unique `(document_template_id, pdf_field_name)` — one row per AcroForm field name in the PDF
 - `field_type`: `text` | `textarea` | `date` | `checkbox` | `number` | `signature_area`
+- staff may edit `value_key`, `field_type`, `is_required`, and `sort_order`; they must not add fields absent from the PDF
 
 ### `form_requests`
 
@@ -152,7 +164,7 @@ Do not regenerate an official PDF after finalize. Serve the stored bytes and com
 
 - Derive `organization_id` from the authenticated server session, never from a client body alone.
 - Public access: look up `token_hash` → one request. Do not list by organization on the public route.
-- Blob paths should be prefixed with `{organization_id}/...`.
+- Blob paths should be prefixed with `{organization_id}/...`. Never accept a `blob_key` from the client. Downloads go through an authenticated route that re-hashes the bytes and compares them to `sha256`.
 - Raw tokens and raw IP addresses are not stored.
 - No secrets in the repository. `DATABASE_URL` stays in `.env.local` after Neon is connected.
 

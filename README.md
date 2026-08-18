@@ -27,7 +27,7 @@ Beveiligd beheer van cliëntformulieren.
    pnpm dev
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000). Het dashboard staat op `/dashboard` (Clerk-organisatie + `DATABASE_URL` vereist).
+4. Open [http://localhost:3000](http://localhost:3000). Het dashboard staat op `/dashboard` (Clerk-organisatie + `DATABASE_URL` vereist). PDF-sjablonen vereisen daarnaast een private Vercel Blob-store (`BLOB_READ_WRITE_TOKEN`).
 
 ## Scripts
 
