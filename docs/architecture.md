@@ -10,7 +10,8 @@
 - Node.js 24
 - ESLint
 - Vitest
-- Drizzle ORM (schema in `src/server/db`; Neon not connected yet)
+- Drizzle ORM (schema in `src/server/db`; Neon runtime via lazy `getDb()`)
+- Clerk Organizations (session + `src/proxy.ts`; no user sync yet)
 - pdf-lib
 - zod
 
@@ -23,3 +24,4 @@
 - Keep the foundation small. Do not add unused infrastructure or speculative features.
 
 See [database.md](./database.md) for the V1 data model.
+See [auth.md](./auth.md) and [security.md](./security.md) for Clerk mapping and tenant rules.
