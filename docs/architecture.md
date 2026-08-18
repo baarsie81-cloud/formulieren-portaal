@@ -14,6 +14,7 @@
 - Clerk Organizations (session, tenant projection, dashboard)
 - pdf-lib
 - zod
+- Vercel Blob (private)
 
 ## Principles
 
@@ -23,16 +24,23 @@
 - Timezone: `Europe/Amsterdam`.
 - Keep the foundation small. Do not add unused infrastructure or speculative features.
 
-## Application (phase 3)
+## Application (phase 4)
 
-Staff dashboard at `/dashboard`. The first domain workflow is **organization + client**:
+Staff dashboard at `/dashboard`. Domain workflows so far:
 
-1. Sign in with Clerk.
-2. Select or create a Clerk organization (practice).
-3. `requireTenant()` projects that organization, user, and membership into Postgres.
-4. Add and manage clients for that organization only.
+1. Sign in with Clerk and select a Clerk organization (practice).
+2. `requireTenant()` projects that organization, user, and membership into Postgres.
+3. Add and manage clients for that organization only.
+4. Upload an existing professionally designed PDF as a **document template**.
+5. Map the PDF’s existing AcroForm fields (`pdf_field_name` → `value_key` / type). The PDF itself is not edited.
 
-Not in this phase: sending forms, filling, signing, PDF generation, or export.
+The SHA-256 of the stored PDF bytes is the content version. Template PDFs are immutable after upload. A new version is a new template (archive the old one).
+
+Private object storage (Vercel Blob) holds the file. The database stores the pathname (`blob_key`) and hash, not the bytes.
+
+Not in this phase: sending forms, filling, signing, final PDF generation, or export.
+
+This product is **not** a form builder, PDF editor, or form designer.
 
 See [database.md](./database.md) for the V1 data model.
 See [auth.md](./auth.md) and [security.md](./security.md) for Clerk mapping and tenant rules.

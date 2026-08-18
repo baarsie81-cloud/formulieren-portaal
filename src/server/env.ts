@@ -12,6 +12,8 @@ const serverEnvSchema = z.object({
   DATABASE_URL: optionalSecret,
   DATABASE_URL_UNPOOLED: optionalSecret,
   CLERK_SECRET_KEY: optionalSecret,
+  BLOB_READ_WRITE_TOKEN: optionalSecret,
+  BLOB_STORE_ID: optionalSecret,
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -24,6 +26,8 @@ function readServerEnv(): ServerEnv {
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+    BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
+    BLOB_STORE_ID: process.env.BLOB_STORE_ID,
   });
 
   if (!parsed.success) {
@@ -44,4 +48,9 @@ export function getDatabaseUrl(): string {
     throw new Error("DATABASE_URL is not set");
   }
   return databaseUrl;
+}
+
+export function isBlobConfigured(): boolean {
+  const env = getServerEnv();
+  return Boolean(env.BLOB_READ_WRITE_TOKEN || env.BLOB_STORE_ID);
 }

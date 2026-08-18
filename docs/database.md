@@ -47,9 +47,12 @@ Minimal addressee. Not a medical record.
 
 ### `document_templates`
 
-Fixed PDF templates (not a form builder).
+Fixed PDF templates (not a form builder). The PDF bytes are immutable after upload.
 
-- `blob_key`, `sha256`, `status` `active` | `archived`
+- `blob_key`: private Blob **pathname** `{organization_id}/templates/{template_id}/{sha256}.pdf`
+- `sha256`: hex digest of the stored bytes (content version)
+- `status` `active` | `archived`
+- replacing a PDF is a new template; sent requests snapshot `blob_key` + `sha256` on `form_documents`
 
 ### `document_fields`
 
@@ -152,7 +155,7 @@ Do not regenerate an official PDF after finalize. Serve the stored bytes and com
 
 - Derive `organization_id` from the authenticated server session, never from a client body alone.
 - Public access: look up `token_hash` → one request. Do not list by organization on the public route.
-- Blob paths should be prefixed with `{organization_id}/...`.
+- Blob paths should be prefixed with `{organization_id}/...`. Never accept a `blob_key` from the client. Downloads go through an authenticated route that re-hashes the bytes and compares them to `sha256`.
 - Raw tokens and raw IP addresses are not stored.
 - No secrets in the repository. `DATABASE_URL` stays in `.env.local` after Neon is connected.
 

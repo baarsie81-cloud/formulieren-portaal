@@ -5,8 +5,8 @@
 - The active organization always comes from the **server-side Clerk session** (`auth().orgId`).
 - Never trust `organization_id`, `orgId`, or similar values from a request body, query string, or client component.
 - Resolve our UUID with `requireTenant()` / `requireDashboardContext()`. Pass that `organizationId` into every query.
-- Every tenant query must be scoped: `organization_id` plus row `id` (see the database unique `(organization_id, id)` keys). Client lookups use `clientInOrganization(organizationId, clientId)`.
-- Missing or cross-tenant clients are `NotFoundError` (404). Do not reveal that a row exists in another tenant.
+- Every tenant query must be scoped: `organization_id` plus row `id` (see the database unique `(organization_id, id)` keys). Client lookups use `clientInOrganization(organizationId, clientId)`. Template lookups use `templateInOrganization(organizationId, templateId)`.
+- Missing or cross-tenant clients or templates are `NotFoundError` (404). Do not reveal that a row exists in another tenant.
 - Public token links (later) look up `token_hash` → one request. They must not list by organization.
 
 ## Database access
@@ -20,14 +20,22 @@
 
 `AuthError` is 401 (not signed in) or 403 (no active organization / unsupported role). Callers should turn that into an HTTP response or redirect; do not leak whether a row exists in another tenant.
 
+## Object storage
+
+- Template PDFs live in a **private** Vercel Blob store. Public blob URLs must never be rendered in the UI.
+- Pathnames are `{organization_id}/templates/{template_id}/{sha256}.pdf`. Construction uses UUIDs + hex SHA-256 only.
+- Before `get()`, verify the stored `blob_key` equals that canonical path for the tenant row.
+- Serve files only from `/dashboard/templates/[templateId]/file` after `requireDashboardContext()`. Re-hash bytes and compare to `sha256` before streaming.
+- `BLOB_READ_WRITE_TOKEN` is server-only (local). On Vercel, OIDC + `BLOB_STORE_ID` may be used instead.
+
 ## Secrets
 
 - Real values live in `.env.local` or the host environment. Never commit them.
-- `CLERK_SECRET_KEY` and `DATABASE_URL` are server-only.
+- `CLERK_SECRET_KEY`, `DATABASE_URL`, and `BLOB_READ_WRITE_TOKEN` are server-only.
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is the only Clerk key allowed in the browser.
 
 ## Audit / PII
 
 - Do not put `field_values`, raw tokens, or client field values in `audit_events.metadata`.
-- Client mutations may store `changedFields` (field names only).
+- Client mutations may store `changedFields` (field names only). Template field updates may store `changedCount`, not keys or values.
 - Store IP as HMAC (`ip_hash`), never raw IP.
