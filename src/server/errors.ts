@@ -44,3 +44,11 @@ export class IntegrityError extends AppError {
     this.name = "IntegrityError";
   }
 }
+
+/** Public token/session failures. Always the same client-facing message. */
+export class TokenAccessError extends AppError {
+  constructor(message = "Form link is invalid or expired") {
+    super(message, 404, "token_access");
+    this.name = "TokenAccessError";
+  }
+}

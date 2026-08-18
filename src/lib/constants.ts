@@ -24,3 +24,34 @@ export const DOCUMENT_FIELD_TYPE_LABELS: Record<DocumentFieldType, string> = {
   number: "Getal",
   signature_area: "Handtekening",
 };
+
+export const FORM_REQUEST_TTL_DAYS = 14;
+
+export const FORM_REQUEST_STATUSES = [
+  "sent",
+  "opened",
+  "in_progress",
+  "completed",
+  "expired",
+  "cancelled",
+] as const;
+
+export type FormRequestStatus = (typeof FORM_REQUEST_STATUSES)[number];
+
+export const FORM_REQUEST_STATUS_LABELS: Record<FormRequestStatus, string> = {
+  sent: "Link aangemaakt",
+  opened: "Geopend",
+  in_progress: "Bezig met invullen",
+  completed: "Afgerond",
+  expired: "Verlopen",
+  cancelled: "Geannuleerd",
+};
+
+export const FORM_SESSION_COOKIE = "fp_form_session";
+export const FORM_CREATED_TOKEN_COOKIE = "fp_created_form_token";
+
+/** 32 random bytes as base64url (no padding). */
+export const RAW_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+
+export const PUBLIC_FORM_INVALID_MESSAGE =
+  "Deze link is ongeldig of verlopen. Neem contact op met de praktijk als je een nieuw formulier verwacht.";

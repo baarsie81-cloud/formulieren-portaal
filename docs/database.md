@@ -73,34 +73,28 @@ Technical mapping of **existing** AcroForm fields from the uploaded PDF: name, t
 
 ### `form_requests`
 
-One send-flow to one client. Status unit for the link and reminders.
+One send-flow to one client. Status unit for the link (e-mail send is a later phase).
 
 - snapshots: `recipient_name`, `recipient_email`
 - `status`: `sent` | `opened` | `in_progress` | `completed` | `expired` | `cancelled`
 - composite FK to `clients`
+- Phase 5 creates the row, a `form_documents` snapshot, and one `secure_tokens` hash. Signing/`completed` is later.
 
 ### `form_documents`
 
 One PDF inside a request. Holds template snapshot, working `field_values`, and **final PDF metadata**.
 
 - `template_blob_key`, `template_sha256`, `fields_schema_snapshot` frozen at send
-- `final_pdf_blob_key`, `final_pdf_sha256`, `finalized_at`
-- check: `finalized` requires blob key, SHA-256, and timestamp; other statuses require those to be null
-- the file itself lives in private object storage; this row is the pointer
+- `field_values` are keyed by `value_key` from the snapshot (never by a client-supplied schema)
+- `final_pdf_blob_key`, `final_pdf_sha256`, `finalized_at` stay null until a later signing/finalize phase
+- filled PDF previews are generated on the fly with pdf-lib from the frozen template bytes + `field_values`; they are not the audit PDF
 
 ### `form_sessions`
 
 Fill session opened via a secure token.
 
 - `nonce_hash`, `ip_hash` (HMAC, not raw IP), `user_agent`
-
-### `signatures`
-
-Append-only visual or typed signature. One per document in V1.
-
-### `acceptances`
-
-Append-only legal agreement. Stores the exact `declaration_text` and `accepted_at`.
+- `completed_at` is set when the client submits the fill (ready for signing). Further value edits are refused.
 
 ### `secure_tokens`
 
@@ -108,6 +102,15 @@ Capability to open the public link. Store **only** `token_hash`, never the raw t
 
 - unique hash
 - at most one active (non-revoked) token per request
+- public route: hash the URL token, look up that hash. Do not query by `organization_id` on the public path.
+
+### `signatures`
+
+Append-only visual or typed signature. One per document in V1. Not used in phase 5.
+
+### `acceptances`
+
+Append-only legal agreement. Stores the exact `declaration_text` and `accepted_at`. Not used in phase 5.
 
 ### `audit_events`
 

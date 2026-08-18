@@ -63,6 +63,14 @@ export default async function ClientDetailPage({
             submitLabel="Wijzigingen opslaan"
             cancelHref="/dashboard/clients"
           />
+          <div className="flex gap-3">
+            <Link
+              href={`/dashboard/requests/new?clientId=${client.id}`}
+              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+            >
+              Formulierlink maken
+            </Link>
+          </div>
           <ArchiveClientButton clientId={client.id} />
         </>
       )}

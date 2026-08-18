@@ -43,7 +43,8 @@ Daarna moet de PDF **interactieve AcroForm-velden** bevatten (tekst, keuzevak, h
 1. PDF uploaden naar Formulierendesk.
 2. Bestaande AcroForm-velden **uitlezen** (pdf-lib).
 3. Velden koppelen aan de workflow (`pdf_field_name` → `value_key`, type, verplicht, volgorde).
-4. Later (andere fase): gegevens invullen, ondertekenen, definitief audit-PDF genereren.
+4. Gegevens invullen via de beveiligde cliëntlink (bestaande AcroForm-velden).
+5. Later (andere fase): ondertekenen, definitief audit-PDF genereren.
 
 De SHA-256 van de opgeslagen PDF-bytes is de inhoudsversie. Template-PDF’s zijn onwijzigbaar na upload. Een nieuwe versie is een nieuw sjabloon (archiveer het oude).
 
@@ -60,7 +61,7 @@ Private object storage (Vercel Blob) bewaart het bestand. De database bewaart pa
 - Veilige opslag (private Blob, tenant-scoped paden)
 - Workflow rondom het PDF
 - Veldmapping (bestaande AcroForm → workflow-sleutels)
-- Invullen (latere fase)
+- Invullen van bestaande AcroForm-velden via de publieke tokenlink
 - Ondertekenen (latere fase)
 - Auditdocument (definitief PDF + hash, latere fase)
 
@@ -72,7 +73,7 @@ Private object storage (Vercel Blob) bewaart het bestand. De database bewaart pa
 - Automatische PDF-conversie (bijv. platte PDF → AcroForm)
 - Alternatieve veldmapping buiten AcroForm om
 
-## Application (phase 4)
+## Application (phase 5)
 
 Staff dashboard at `/dashboard`. Domain workflows so far:
 
@@ -81,8 +82,10 @@ Staff dashboard at `/dashboard`. Domain workflows so far:
 3. Add and manage clients for that organization only.
 4. Upload an existing professionally designed PDF with AcroForm fields as a **document template**.
 5. Map the PDF’s existing AcroForm fields (`pdf_field_name` → `value_key` / type). The PDF itself is not edited.
+6. Create a **form request** for one client and one template. A high-entropy token is generated; only `token_hash` is stored.
+7. The client opens `/f/[token]`, starts a form session (httpOnly nonce cookie), fills the existing AcroForm fields, and saves values. Submitting the fill prepares signing (next phase).
 
-Not in this phase: sending forms, filling, signing, final PDF generation, or export.
+Not in this phase: signing, final audit-PDF generation, reminders, or sending e-mail.
 
 See [database.md](./database.md) for the V1 data model.
 See [auth.md](./auth.md) and [security.md](./security.md) for Clerk mapping and tenant rules.
