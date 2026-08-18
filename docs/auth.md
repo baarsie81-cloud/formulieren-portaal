@@ -42,8 +42,8 @@ Archived local organizations are rejected (403).
 
 Next.js 16 uses `src/proxy.ts` (replacement for `middleware.ts`). `clerkMiddleware()` attaches the session.
 
-Public routes: `/`, `/sign-in`, `/sign-up`. Everything else, including `/dashboard` and `/select-organization`, requires a signed-in user when Clerk keys are present. An organization is required only in the dashboard layout, not on `/select-organization`.
+Public routes: `/`, `/sign-in`, `/sign-up`, `/f` (client form-token links). Everything else, including `/dashboard` and `/select-organization`, requires a signed-in user when Clerk keys are present. An organization is required only in the dashboard layout, not on `/select-organization`.
 
-Public form-token links (later) must be added to the public matcher. They must look up `token_hash`, not list by organization.
+Public form-token links look up `token_hash` (SHA-256 of the raw token), not by organization. The raw token is never stored. Opening the form creates a `form_sessions` row and an httpOnly nonce cookie (`fp_form_session`, path `/f`). Subsequent fills require both the URL token and a matching session cookie. Invalid, expired, revoked, or cancelled links share one generic message.
 
 If Clerk keys are missing (local build without secrets), the proxy is a no-op so `pnpm build` does not require credentials.

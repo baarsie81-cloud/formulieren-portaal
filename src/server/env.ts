@@ -14,6 +14,7 @@ const serverEnvSchema = z.object({
   CLERK_SECRET_KEY: optionalSecret,
   BLOB_READ_WRITE_TOKEN: optionalSecret,
   BLOB_STORE_ID: optionalSecret,
+  HMAC_SECRET: optionalSecret,
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -28,6 +29,7 @@ function readServerEnv(): ServerEnv {
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
     BLOB_STORE_ID: process.env.BLOB_STORE_ID,
+    HMAC_SECRET: process.env.HMAC_SECRET,
   });
 
   if (!parsed.success) {
@@ -53,4 +55,15 @@ export function getDatabaseUrl(): string {
 export function isBlobConfigured(): boolean {
   const env = getServerEnv();
   return Boolean(env.BLOB_READ_WRITE_TOKEN || env.BLOB_STORE_ID);
+}
+
+export function getHmacSecret(): string {
+  const env = getServerEnv();
+  const secret = env.HMAC_SECRET ?? env.CLERK_SECRET_KEY;
+
+  if (!secret) {
+    throw new Error("HMAC_SECRET is not set");
+  }
+
+  return secret;
 }

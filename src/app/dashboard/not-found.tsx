@@ -3,7 +3,7 @@ export default function DashboardNotFound() {
     <section className="flex flex-col gap-2">
       <h1 className="text-2xl font-semibold tracking-tight">Niet gevonden</h1>
       <p className="text-neutral-600">
-        Deze pagina, cliënt of sjabloon bestaat niet in deze praktijk.
+        Deze pagina, cliënt, sjabloon of verzoek bestaat niet in deze praktijk.
       </p>
     </section>
   );
