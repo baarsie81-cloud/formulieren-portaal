@@ -26,6 +26,8 @@ import {
   templateInOrganization,
 } from "@/server/templates/scope";
 
+export const NO_ACROFORM_FIELDS_MESSAGE = "PDF has no AcroForm fields";
+
 function parseTemplateId(templateId: string): string {
   const parsed = templateIdSchema.safeParse(templateId);
 
@@ -86,6 +88,11 @@ export async function createTemplate(
   assertPdfBytes(pdfBytes);
 
   const extracted = await extractPdfFields(pdfBytes);
+
+  if (extracted.fields.length === 0) {
+    throw new ValidationError(NO_ACROFORM_FIELDS_MESSAGE);
+  }
+
   const sha256 = sha256Hex(pdfBytes);
   const templateId = randomUUID();
   const blobKey = templatePdfBlobKey(tenant.organizationId, templateId, sha256);
@@ -113,24 +120,22 @@ export async function createTemplate(
         throw new Error("Failed to create template");
       }
 
-      if (extracted.fields.length > 0) {
-        await tx.insert(documentFields).values(
-          extracted.fields.map((field, index) => ({
-            organizationId: tenant.organizationId,
-            documentTemplateId: template.id,
-            pdfFieldName: field.pdfFieldName,
-            valueKey: field.valueKey,
-            fieldType: field.fieldType,
-            pageNumber: field.pageNumber,
-            x: field.x,
-            y: field.y,
-            width: field.width,
-            height: field.height,
-            isRequired: field.isRequired,
-            sortOrder: index,
-          })),
-        );
-      }
+      await tx.insert(documentFields).values(
+        extracted.fields.map((field, index) => ({
+          organizationId: tenant.organizationId,
+          documentTemplateId: template.id,
+          pdfFieldName: field.pdfFieldName,
+          valueKey: field.valueKey,
+          fieldType: field.fieldType,
+          pageNumber: field.pageNumber,
+          x: field.x,
+          y: field.y,
+          width: field.width,
+          height: field.height,
+          isRequired: field.isRequired,
+          sortOrder: index,
+        })),
+      );
 
       await writeUserAuditEvent(tx, {
         tenant,

@@ -14,6 +14,7 @@ import {
 import {
   archiveTemplate,
   createTemplate,
+  NO_ACROFORM_FIELDS_MESSAGE,
   updateTemplateFieldMappings,
   updateTemplateMetadata,
 } from "@/server/templates/service";
@@ -144,6 +145,10 @@ function toTemplateMutationError(error: unknown): string {
 
     if (error.message === "Field mapping does not match the stored PDF fields") {
       return "De veldkoppeling hoort niet bij dit PDF-sjabloon.";
+    }
+
+    if (error.message === NO_ACROFORM_FIELDS_MESSAGE) {
+      return "Dit PDF-bestand bevat geen interactieve AcroForm-velden. Maak eerst invulvelden aan en upload daarna opnieuw.";
     }
 
     return "Controleer de ingevulde gegevens.";
