@@ -13,6 +13,14 @@ The signed final PDF is the primary audit document. These tables are the registe
 - Foreign keys use `ON DELETE RESTRICT`. Do not cascade-delete audit evidence.
 - No quote, price, VAT, catalog, or CRM/EPD fields.
 
+## Document templates (V1)
+
+V1 accepts only PDFs that already contain **AcroForm** fields (see [architecture.md](./architecture.md)). The PDF is designed and fielded outside Formulierendesk (Word, InDesign, Acrobat Pro, etc.). Formulierendesk reads those fields; it does not draw, convert, or invent them.
+
+- **AcroForm is required.** A PDF without invulbare AcroForm fields must be rejected at upload with a clear staff-facing message. No silent acceptance, no automatic conversion to AcroForm.
+- **`document_fields` rows** come only from extracted AcroForm metadata. Staff may adjust mapping (`value_key`, type, required, sort order), not add fields that are not in the PDF.
+- **No form builder, PDF editor, drag/drop designer, or alternative field-mapping** in V1 scope.
+
 ## Tables
 
 ### `organizations`
@@ -47,7 +55,7 @@ Minimal addressee. Not a medical record.
 
 ### `document_templates`
 
-Fixed PDF templates (not a form builder). The PDF bytes are immutable after upload.
+Fixed PDF templates (not a form builder). The PDF bytes are immutable after upload. **V1:** the uploaded file must contain AcroForm fields; otherwise reject the upload (see [architecture.md](./architecture.md)).
 
 - `blob_key`: private Blob **pathname** `{organization_id}/templates/{template_id}/{sha256}.pdf`
 - `sha256`: hex digest of the stored bytes (content version)
@@ -56,11 +64,12 @@ Fixed PDF templates (not a form builder). The PDF bytes are immutable after uplo
 
 ### `document_fields`
 
-Technical mapping of existing PDF fields: name, type, optional position, validation.
+Technical mapping of **existing** AcroForm fields from the uploaded PDF: name, type, optional position, validation. Rows are created from pdf-lib extraction at upload, not drawn in-app.
 
 - belongs to one template via composite FK `(organization_id, document_template_id)`
-- unique `(document_template_id, pdf_field_name)`
+- unique `(document_template_id, pdf_field_name)` — one row per AcroForm field name in the PDF
 - `field_type`: `text` | `textarea` | `date` | `checkbox` | `number` | `signature_area`
+- staff may edit `value_key`, `field_type`, `is_required`, and `sort_order`; they must not add fields absent from the PDF
 
 ### `form_requests`
 

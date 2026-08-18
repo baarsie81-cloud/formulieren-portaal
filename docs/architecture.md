@@ -24,6 +24,54 @@
 - Timezone: `Europe/Amsterdam`.
 - Keep the foundation small. Do not add unused infrastructure or speculative features.
 
+## Document templates (V1 product decision)
+
+Formulierendesk ondersteunt **uitsluitend** professioneel ontworpen PDF-documenten met bestaande **AcroForm**-velden. Dit is een definitieve V1-productkeuze, geen tijdelijke beperking.
+
+### Buiten Formulierendesk (klant / ontwerper)
+
+De PDF wordt **buiten** Formulierendesk gemaakt en voorbereid, bijvoorbeeld met:
+
+- Microsoft Word
+- Adobe InDesign
+- Adobe Acrobat Pro
+
+Daarna moet de PDF **interactieve AcroForm-velden** bevatten (tekst, keuzevak, handtekeninggebied, enz.). Formulierendesk tekent, converteert of ontwerpt die velden niet.
+
+### In Formulierendesk (workflow)
+
+1. PDF uploaden naar Formulierendesk.
+2. Bestaande AcroForm-velden **uitlezen** (pdf-lib).
+3. Velden koppelen aan de workflow (`pdf_field_name` → `value_key`, type, verplicht, volgorde).
+4. Later (andere fase): gegevens invullen, ondertekenen, definitief audit-PDF genereren.
+
+De SHA-256 van de opgeslagen PDF-bytes is de inhoudsversie. Template-PDF’s zijn onwijzigbaar na upload. Een nieuwe versie is een nieuw sjabloon (archiveer het oude).
+
+Private object storage (Vercel Blob) bewaart het bestand. De database bewaart pathname (`blob_key`) en hash, niet de bytes.
+
+### V1 vereiste: AcroForm
+
+- **AcroForm is verplicht.** Een PDF zonder invulbare AcroForm-velden voldoet niet aan V1.
+- Upload van zo’n PDF wordt **afgewezen** met een duidelijke melding aan de medewerker (geen stille acceptatie, geen automatische conversie).
+- Velden worden **niet** in Formulierendesk aangemaakt; `document_fields` komt alleen uit wat in het PDF staat.
+
+### Formulierendesk is wél verantwoordelijk voor
+
+- Veilige opslag (private Blob, tenant-scoped paden)
+- Workflow rondom het PDF
+- Veldmapping (bestaande AcroForm → workflow-sleutels)
+- Invullen (latere fase)
+- Ondertekenen (latere fase)
+- Auditdocument (definitief PDF + hash, latere fase)
+
+### Formulierendesk is níet verantwoordelijk voor
+
+- Ontwerp of layout van het PDF
+- Nieuwe velden tekenen of plaatsen
+- PDF-editor, formulierbouwer, drag/drop designer
+- Automatische PDF-conversie (bijv. platte PDF → AcroForm)
+- Alternatieve veldmapping buiten AcroForm om
+
 ## Application (phase 4)
 
 Staff dashboard at `/dashboard`. Domain workflows so far:
@@ -31,16 +79,10 @@ Staff dashboard at `/dashboard`. Domain workflows so far:
 1. Sign in with Clerk and select a Clerk organization (practice).
 2. `requireTenant()` projects that organization, user, and membership into Postgres.
 3. Add and manage clients for that organization only.
-4. Upload an existing professionally designed PDF as a **document template**.
+4. Upload an existing professionally designed PDF with AcroForm fields as a **document template**.
 5. Map the PDF’s existing AcroForm fields (`pdf_field_name` → `value_key` / type). The PDF itself is not edited.
 
-The SHA-256 of the stored PDF bytes is the content version. Template PDFs are immutable after upload. A new version is a new template (archive the old one).
-
-Private object storage (Vercel Blob) holds the file. The database stores the pathname (`blob_key`) and hash, not the bytes.
-
 Not in this phase: sending forms, filling, signing, final PDF generation, or export.
-
-This product is **not** a form builder, PDF editor, or form designer.
 
 See [database.md](./database.md) for the V1 data model.
 See [auth.md](./auth.md) and [security.md](./security.md) for Clerk mapping and tenant rules.
