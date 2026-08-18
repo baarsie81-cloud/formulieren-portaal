@@ -4,7 +4,9 @@
 
 - The active organization always comes from the **server-side Clerk session** (`auth().orgId`).
 - Never trust `organization_id`, `orgId`, or similar values from a request body, query string, or client component.
-- Every tenant query must be scoped: `organization_id` plus row `id` (see the database unique `(organization_id, id)` keys).
+- Resolve our UUID with `requireTenant()` / `requireDashboardContext()`. Pass that `organizationId` into every query.
+- Every tenant query must be scoped: `organization_id` plus row `id` (see the database unique `(organization_id, id)` keys). Client lookups use `clientInOrganization(organizationId, clientId)`.
+- Missing or cross-tenant clients are `NotFoundError` (404). Do not reveal that a row exists in another tenant.
 - Public token links (later) look up `token_hash` → one request. They must not list by organization.
 
 ## Database access
@@ -16,7 +18,7 @@
 
 ## Auth errors
 
-`AuthError` is 401 (not signed in) or 403 (no active organization / unsupported role). Callers should turn that into an HTTP response; do not leak whether a row exists in another tenant.
+`AuthError` is 401 (not signed in) or 403 (no active organization / unsupported role). Callers should turn that into an HTTP response or redirect; do not leak whether a row exists in another tenant.
 
 ## Secrets
 
@@ -26,5 +28,6 @@
 
 ## Audit / PII
 
-- Do not put `field_values` or raw tokens in `audit_events.metadata`.
+- Do not put `field_values`, raw tokens, or client field values in `audit_events.metadata`.
+- Client mutations may store `changedFields` (field names only).
 - Store IP as HMAC (`ip_hash`), never raw IP.

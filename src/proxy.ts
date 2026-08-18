@@ -1,21 +1,20 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
-import { NextResponse, type NextRequest } from "next/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import { isClerkConfigured } from "@/lib/clerk";
 
-const clerkIsConfigured = Boolean(
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY,
-);
-
-function isApiRoute(request: NextRequest) {
-  return request.nextUrl.pathname === "/api" || request.nextUrl.pathname.startsWith("/api/");
-}
+const isPublicRoute = createRouteMatcher([
+  "/",
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+]);
 
 const clerkProxy = clerkMiddleware(async (auth, request) => {
-  if (isApiRoute(request)) {
+  if (!isPublicRoute(request)) {
     await auth.protect();
   }
 });
 
-export default clerkIsConfigured
+export default isClerkConfigured()
   ? clerkProxy
   : function proxy() {
       return NextResponse.next();
