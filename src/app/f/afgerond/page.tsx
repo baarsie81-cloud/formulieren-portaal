@@ -1,9 +1,10 @@
-import { readAndClearFormSignedCookie } from "@/server/forms/cookie";
+import { readFormSignedCookie } from "@/server/forms/cookie";
+import { ClearSignedCookie } from "./clear";
 
 export const dynamic = "force-dynamic";
 
 export default async function FormSignedPage() {
-  const recipientName = await readAndClearFormSignedCookie();
+  const recipientName = await readFormSignedCookie();
 
   if (!recipientName) {
     return (
@@ -18,6 +19,7 @@ export default async function FormSignedPage() {
 
   return (
     <section className="flex flex-col gap-4">
+      <ClearSignedCookie />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Formulier afgerond</h1>
         <p className="mt-2 text-neutral-600">

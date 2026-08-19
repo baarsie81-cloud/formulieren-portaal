@@ -77,7 +77,7 @@ export async function writeFormSignedCookie(recipientName: string) {
   });
 }
 
-export async function readAndClearFormSignedCookie(): Promise<string | null> {
+export async function readFormSignedCookie(): Promise<string | null> {
   const store = await cookies();
   const value = store.get(FORM_SIGNED_COOKIE)?.value;
 
@@ -85,13 +85,23 @@ export async function readAndClearFormSignedCookie(): Promise<string | null> {
     return null;
   }
 
-  store.delete(FORM_SIGNED_COOKIE);
-
   try {
     return Buffer.from(value, "base64url").toString("utf8");
   } catch {
     return null;
   }
+}
+
+export async function clearFormSignedCookie(): Promise<void> {
+  const store = await cookies();
+  store.delete(FORM_SIGNED_COOKIE);
+}
+
+/** @deprecated Call readFormSignedCookie() in Server Components, clearFormSignedCookie() in Server Actions. */
+export async function readAndClearFormSignedCookie(): Promise<string | null> {
+  const name = await readFormSignedCookie();
+  await clearFormSignedCookie();
+  return name;
 }
 
 export async function clearFormSessionCookie() {
