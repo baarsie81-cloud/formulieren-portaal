@@ -1,7 +1,10 @@
 import {
   PDFCheckBox,
   PDFDocument,
+  PDFDropdown,
   PDFField,
+  PDFOptionList,
+  PDFRadioGroup,
   PDFSignature,
   PDFTextField,
 } from "pdf-lib";
@@ -62,6 +65,8 @@ function applyFieldValue(
   fieldType: DocumentFieldType,
   value: string | boolean,
 ): void {
+  const text = typeof value === "boolean" ? "" : value;
+
   if (pdfField instanceof PDFSignature) {
     return;
   }
@@ -76,12 +81,41 @@ function applyFieldValue(
   }
 
   if (pdfField instanceof PDFTextField) {
-    const text = typeof value === "boolean" ? "" : value;
     const clipped = fieldType === "textarea" ? text.slice(0, 5_000) : text.slice(0, 500);
 
     pdfField.setText(clipped);
     return;
   }
 
+  if (pdfField instanceof PDFDropdown || pdfField instanceof PDFOptionList) {
+    const option = matchExistingOption(pdfField.getOptions(), text);
+
+    if (option) {
+      pdfField.select(option);
+      return;
+    }
+
+    throw new ValidationError("Cannot fill PDF field");
+  }
+
+  if (pdfField instanceof PDFRadioGroup) {
+    const option = matchExistingOption(pdfField.getOptions(), text);
+
+    if (option) {
+      pdfField.select(option);
+      return;
+    }
+
+    throw new ValidationError("Cannot fill PDF field");
+  }
+
   throw new ValidationError("Cannot fill PDF field");
+}
+
+function matchExistingOption(options: string[], value: string): string | null {
+  if (!value) {
+    return null;
+  }
+
+  return options.find((option) => option === value) ?? null;
 }
