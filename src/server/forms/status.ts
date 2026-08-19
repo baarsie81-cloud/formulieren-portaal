@@ -29,3 +29,7 @@ export function isWritableRequestStatus(status: FormRequestStatus): boolean {
 export function isOpenableRequestStatus(status: FormRequestStatus): boolean {
   return isWritableRequestStatus(status);
 }
+
+export function isSignableRequestStatus(status: FormRequestStatus): boolean {
+  return status === "opened" || status === "in_progress";
+}

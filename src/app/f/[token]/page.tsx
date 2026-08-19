@@ -1,12 +1,11 @@
-import Link from "next/link";
 import { InvalidFormLink } from "@/components/invalid-form-link";
 import { PublicFormFill } from "@/components/public-form-fill";
+import { PublicFormSign } from "@/components/public-form-sign";
 import { PublicFormStart } from "@/components/public-form-start";
 import { PUBLIC_FORM_INVALID_MESSAGE } from "@/lib/constants";
 import { TokenAccessError } from "@/server/errors";
 import { getPublicFormContext } from "@/server/forms/public";
 import { parseRawToken } from "@/server/forms/schema";
-import { fillableFields } from "@/server/forms/snapshot";
 
 export const dynamic = "force-dynamic";
 
@@ -52,34 +51,25 @@ export default async function PublicFormPage({
     );
   }
 
-  if (context.fillSubmitted) {
+  if (context.finalized) {
     return (
-      <section className="flex flex-col gap-4">
-        <div>
-          <p className="text-sm text-neutral-500">{context.organizationName}</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Gegevens ontvangen</h1>
-          <p className="mt-2 text-neutral-600">
-            Dank je, {context.recipientName}. Je gegevens zijn opgeslagen. Ondertekenen volgt in een
-            volgende stap.
-          </p>
-        </div>
-        <Link href={`/f/${token}/preview`} className="text-sm text-neutral-900 underline">
-          Ingevuld PDF bekijken
-        </Link>
+      <section className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Formulier afgerond</h1>
+        <p className="text-neutral-600">
+          Dit formulier is al definitief ondertekend. Neem contact op met de praktijk als je
+          vragen hebt.
+        </p>
       </section>
     );
   }
 
-  const fillable = fillableFields(context.snapshot);
-
-  if (fillable.length === 0) {
+  if (context.readyForSigning) {
     return (
-      <section className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Niets in te vullen</h1>
-        <p className="text-neutral-600">
-          Dit document heeft alleen een handtekeningveld. Ondertekenen volgt later.
-        </p>
-      </section>
+      <PublicFormSign
+        token={token}
+        organizationName={context.organizationName}
+        recipientName={context.recipientName}
+      />
     );
   }
 

@@ -132,6 +132,7 @@ export async function getFormRequest(tenant: TenantContext, requestId: string) {
     .limit(1);
 
   const fillSubmitted = await hasSubmittedFill(tenant.organizationId, row.request.id);
+  const isFinalized = row.document.status === "finalized";
 
   return {
     request: { ...row.request, status },
@@ -140,8 +141,9 @@ export async function getFormRequest(tenant: TenantContext, requestId: string) {
     organizationName: row.organizationName,
     hasActiveToken: Boolean(activeToken) && status !== "expired" && status !== "cancelled",
     fillSubmitted,
-    canCancel: isWritableRequestStatus(status),
-    canRotateToken: isWritableRequestStatus(status),
+    isFinalized,
+    canCancel: isWritableRequestStatus(status) && !isFinalized,
+    canRotateToken: isWritableRequestStatus(status) && !isFinalized,
   };
 }
 

@@ -2,7 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { PUBLIC_FORM_INVALID_MESSAGE } from "@/lib/constants";
-import { ConflictError, TokenAccessError } from "@/server/errors";
+import { ConflictError, TokenAccessError, ValidationError } from "@/server/errors";
+import {
+  clearFormSessionCookie,
+  writeFormSignedCookie,
+} from "@/server/forms/cookie";
 import {
   getPublicFormContext,
   savePublicFormValues,
@@ -11,6 +15,7 @@ import {
 } from "@/server/forms/public";
 import { getRequestMeta, publicFormPath } from "@/server/forms/request-meta";
 import { parseRawToken } from "@/server/forms/schema";
+import { signAndFinalizePublicForm } from "@/server/forms/signing";
 import { readPublicFieldValues } from "@/server/forms/values";
 
 export type PublicFormState = {
@@ -51,6 +56,45 @@ export async function submitPublicFormAction(
   return persistPublicFormAction(formData, "submit");
 }
 
+export async function signPublicFormAction(
+  _state: PublicFormState,
+  formData: FormData,
+): Promise<PublicFormState> {
+  const token = parseRawToken(readFormString(formData, "token"));
+
+  if (!token) {
+    return { error: PUBLIC_FORM_INVALID_MESSAGE, saved: false };
+  }
+
+  const method = readFormString(formData, "method");
+
+  if (method !== "drawn" && method !== "typed") {
+    return { error: "Kies een handtekeningmethode.", saved: false };
+  }
+
+  try {
+    const context = await getPublicFormContext(token);
+
+    await signAndFinalizePublicForm(
+      token,
+      {
+        signerName: readFormString(formData, "signerName"),
+        method,
+        signatureDataUrl: readFormString(formData, "signatureDataUrl"),
+        acceptedDeclaration: formData.get("acceptedDeclaration") === "on",
+      },
+      await getRequestMeta(),
+    );
+
+    await clearFormSessionCookie();
+    await writeFormSignedCookie(context.recipientName);
+  } catch (error) {
+    return { error: toPublicFormError(error), saved: false };
+  }
+
+  redirect("/f/afgerond");
+}
+
 async function persistPublicFormAction(
   formData: FormData,
   mode: "draft" | "submit",
@@ -76,7 +120,11 @@ async function persistPublicFormAction(
     return { error: toPublicFormError(error), saved: false };
   }
 
-  return { error: null, saved: mode === "draft" };
+  if (mode === "submit") {
+    redirect(publicFormPath(token));
+  }
+
+  return { error: null, saved: true };
 }
 
 function readFormString(formData: FormData, key: string): string {
@@ -91,6 +139,10 @@ function toPublicFormError(error: unknown): string {
 
   if (error instanceof ConflictError) {
     return "Dit formulier is al ingevuld en kan niet meer worden gewijzigd.";
+  }
+
+  if (error instanceof ValidationError) {
+    return error.message;
   }
 
   if (error instanceof Error && error.message === "HMAC_SECRET is not set") {

@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { assertTemplateBlobKey, templatePdfBlobKey } from "@/server/storage/paths";
+import {
+  assertFinalPdfBlobKey,
+  assertSignatureBlobKey,
+  assertTemplateBlobKey,
+  finalPdfBlobKey,
+  signaturePngBlobKey,
+  templatePdfBlobKey,
+} from "@/server/storage/paths";
 
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const TEMPLATE_ID = "22222222-2222-4222-8222-222222222222";
+const REQUEST_ID = "44444444-4444-4444-8444-444444444444";
+const DOCUMENT_ID = "55555555-5555-4555-8555-555555555555";
 const OTHER_ORGANIZATION_ID = "33333333-3333-4333-8333-333333333333";
 const SHA256 = "a".repeat(64);
 
@@ -44,5 +53,50 @@ describe("assertTemplateBlobKey", () => {
         SHA256,
       ),
     ).toThrow("Blob key does not match template identity");
+  });
+});
+
+describe("signaturePngBlobKey", () => {
+  it("stores signatures under the tenant and document id", () => {
+    const key = signaturePngBlobKey(ORGANIZATION_ID, DOCUMENT_ID, SHA256);
+
+    expect(key).toBe(`${ORGANIZATION_ID}/signatures/${DOCUMENT_ID}/${SHA256}.png`);
+  });
+});
+
+describe("finalPdfBlobKey", () => {
+  it("stores final PDFs under the tenant, request, and document id", () => {
+    const key = finalPdfBlobKey(ORGANIZATION_ID, REQUEST_ID, DOCUMENT_ID, SHA256);
+
+    expect(key).toBe(`${ORGANIZATION_ID}/final/${REQUEST_ID}/${DOCUMENT_ID}/${SHA256}.pdf`);
+  });
+});
+
+describe("assertSignatureBlobKey", () => {
+  it("accepts the canonical signature key", () => {
+    const key = signaturePngBlobKey(ORGANIZATION_ID, DOCUMENT_ID, SHA256);
+
+    expect(() =>
+      assertSignatureBlobKey(key, ORGANIZATION_ID, DOCUMENT_ID, SHA256),
+    ).not.toThrow();
+  });
+});
+
+describe("assertFinalPdfBlobKey", () => {
+  it("accepts the canonical final PDF key", () => {
+    const key = finalPdfBlobKey(ORGANIZATION_ID, REQUEST_ID, DOCUMENT_ID, SHA256);
+
+    expect(() =>
+      assertFinalPdfBlobKey(key, ORGANIZATION_ID, REQUEST_ID, DOCUMENT_ID, SHA256),
+    ).not.toThrow();
+    expect(() =>
+      assertFinalPdfBlobKey(
+        templatePdfBlobKey(ORGANIZATION_ID, TEMPLATE_ID, SHA256),
+        ORGANIZATION_ID,
+        REQUEST_ID,
+        DOCUMENT_ID,
+        SHA256,
+      ),
+    ).toThrow("Blob key does not match final PDF identity");
   });
 });

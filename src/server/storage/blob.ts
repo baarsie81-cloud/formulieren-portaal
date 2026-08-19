@@ -21,9 +21,11 @@ function toStorageError(error: unknown, fallback: string): StorageError {
   return new StorageError(fallback);
 }
 
-export async function putPrivatePdf(
+async function putPrivateObject(
   pathname: string,
   bytes: Uint8Array,
+  contentType: string,
+  failureMessage: string,
 ): Promise<void> {
   requireBlobConfigured();
 
@@ -32,12 +34,26 @@ export async function putPrivatePdf(
       ...PRIVATE,
       addRandomSuffix: false,
       allowOverwrite: false,
-      contentType: "application/pdf",
+      contentType,
       cacheControlMaxAge: 60 * 60 * 24 * 365,
     });
   } catch (error) {
-    throw toStorageError(error, "Failed to store PDF");
+    throw toStorageError(error, failureMessage);
   }
+}
+
+export async function putPrivatePdf(
+  pathname: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  await putPrivateObject(pathname, bytes, "application/pdf", "Failed to store PDF");
+}
+
+export async function putPrivatePng(
+  pathname: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  await putPrivateObject(pathname, bytes, "image/png", "Failed to store signature");
 }
 
 export async function getPrivatePdfBytes(pathname: string): Promise<Uint8Array> {

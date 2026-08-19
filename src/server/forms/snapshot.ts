@@ -52,3 +52,7 @@ export function parseFieldsSchemaSnapshot(value: unknown): FieldSchemaSnapshot[]
 export function fillableFields(snapshot: readonly FieldSchemaSnapshot[]): FieldSchemaSnapshot[] {
   return snapshot.filter((field) => field.fieldType !== "signature_area");
 }
+
+export function signatureFields(snapshot: readonly FieldSchemaSnapshot[]): FieldSchemaSnapshot[] {
+  return snapshot.filter((field) => field.fieldType === "signature_area");
+}
