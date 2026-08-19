@@ -2,6 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { PUBLIC_FORM_INVALID_MESSAGE } from "@/lib/constants";
+import { getDb } from "@/server/db";
+import {
+  loadFormCompletionEmailContext,
+  sendFormCompletionNotifications,
+} from "@/server/email/confirmation";
 import { ConflictError, TokenAccessError, ValidationError } from "@/server/errors";
 import {
   clearFormSessionCookie,
@@ -13,7 +18,7 @@ import {
   startPublicFormSession,
   submitPublicFormFill,
 } from "@/server/forms/public";
-import { getRequestMeta, publicFormPath } from "@/server/forms/request-meta";
+import { getPublicOrigin, getRequestMeta, publicFormPath } from "@/server/forms/request-meta";
 import { parseRawToken } from "@/server/forms/schema";
 import { signAndFinalizePublicForm } from "@/server/forms/signing";
 import { readPublicFieldValues } from "@/server/forms/values";
@@ -74,6 +79,7 @@ export async function signPublicFormAction(
 
   try {
     const context = await getPublicFormContext(token);
+    const emailContext = await loadFormCompletionEmailContext(getDb(), token);
 
     await signAndFinalizePublicForm(
       token,
@@ -85,6 +91,17 @@ export async function signPublicFormAction(
       },
       await getRequestMeta(),
     );
+
+    if (emailContext) {
+      try {
+        await sendFormCompletionNotifications(getDb(), {
+          ...emailContext,
+          dashboardOrigin: await getPublicOrigin(),
+        });
+      } catch {
+        // Finalize already succeeded; mail failure must not block the client flow.
+      }
+    }
 
     await clearFormSessionCookie();
     await writeFormSignedCookie(context.recipientName);

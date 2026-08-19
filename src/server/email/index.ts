@@ -9,3 +9,16 @@ export {
   sendFormRequestInvitation,
 } from "@/server/email/invitation";
 export type { FormRequestInvitationInput } from "@/server/email/invitation";
+export {
+  buildFormCompletionClientEmail,
+  buildFormCompletionStaffEmail,
+  loadFormCompletionEmailContext,
+  sendFormCompletionClientEmail,
+  sendFormCompletionNotifications,
+  sendFormCompletionStaffEmail,
+} from "@/server/email/confirmation";
+export type {
+  FormCompletionClientEmailInput,
+  FormCompletionEmailContext,
+  FormCompletionStaffEmailInput,
+} from "@/server/email/confirmation";

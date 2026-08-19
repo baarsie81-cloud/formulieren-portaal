@@ -25,6 +25,7 @@ src/server/email/
   send.ts     — sendEmail() entry point
   events.ts     — email_events logging helpers
   invitation.ts — form request invitation mail
+  confirmation.ts — completion confirmation mails
   schema.ts     — zod validation for send input
   index.ts    — public exports
 ```
@@ -49,10 +50,12 @@ Delivery, bounce, complaint, and open events will be recorded later via a Resend
 
 | Flow | Trigger | Recipient |
 | --- | --- | --- |
-| Form invitation | Staff creates a form request | Client | Implemented in phase 7.2 |
-| Fill confirmation | Client submits the form | Client |
-| Completion confirmation | Document finalized | Client |
-| Staff notification | Document finalized | Organization member |
-| Reminder | Reminder rule schedule | Client |
+| Form invitation | Staff creates a form request | Client | Phase 7.2 |
+| Fill confirmation | Client submits the form | Client | Not implemented |
+| Completion confirmation | Document finalized | Client | Phase 7.3 |
+| Staff notification | Document finalized | Organization member | Phase 7.3 |
+| Reminder | Reminder rule schedule | Client | Not implemented |
 
 Phase 7.2 sends a form invitation when staff create a form request and email is configured. If sending fails, the form request and token remain unchanged; staff can copy the link from the dashboard.
+
+Phase 7.3 sends a client confirmation and a staff notification after successful finalize. Emails are triggered from the public sign action after `signAndFinalizePublicForm()` completes. If email sending fails, the finalized document remains valid and the client still reaches the completion page. A retry after finalize does not send duplicate mail because signing is rejected once the document is finalized.
