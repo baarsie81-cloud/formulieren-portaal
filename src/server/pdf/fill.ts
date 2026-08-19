@@ -88,26 +88,57 @@ function applyFieldValue(
   }
 
   if (pdfField instanceof PDFDropdown || pdfField instanceof PDFOptionList) {
-    const option = matchExistingOption(pdfField.getOptions(), text);
+    const options = pdfField.getOptions();
+    const option = matchExistingOption(options, text);
 
     if (option) {
       pdfField.select(option);
       return;
     }
+
+    // DIAG: temporary – remove before release
+    console.error("[fill-diag] option mismatch", {
+      pdfFieldName: pdfField.getName(),
+      runtimeType: pdfField.constructor.name,
+      storedFieldType: fieldType,
+      valuePresent: text.length > 0,
+      valueLength: text.length,
+      availableOptions: options,
+    });
 
     throw new ValidationError("Cannot fill PDF field");
   }
 
   if (pdfField instanceof PDFRadioGroup) {
-    const option = matchExistingOption(pdfField.getOptions(), text);
+    const options = pdfField.getOptions();
+    const option = matchExistingOption(options, text);
 
     if (option) {
       pdfField.select(option);
       return;
     }
 
+    // DIAG: temporary – remove before release
+    console.error("[fill-diag] radio mismatch", {
+      pdfFieldName: pdfField.getName(),
+      runtimeType: pdfField.constructor.name,
+      storedFieldType: fieldType,
+      valuePresent: text.length > 0,
+      valueLength: text.length,
+      availableOptions: options,
+    });
+
     throw new ValidationError("Cannot fill PDF field");
   }
+
+  // DIAG: temporary – remove before release
+  console.error("[fill-diag] unsupported field type", {
+    pdfFieldName: pdfField.getName(),
+    runtimeType: pdfField.constructor.name,
+    storedFieldType: fieldType,
+    valuePresent: text.length > 0,
+    valueLength: text.length,
+  });
 
   throw new ValidationError("Cannot fill PDF field");
 }
