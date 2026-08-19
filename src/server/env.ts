@@ -14,6 +14,8 @@ const serverEnvSchema = z.object({
   CLERK_SECRET_KEY: optionalSecret,
   BLOB_READ_WRITE_TOKEN: optionalSecret,
   BLOB_STORE_ID: optionalSecret,
+  RESEND_API_KEY: optionalSecret,
+  EMAIL_FROM: optionalSecret,
   HMAC_SECRET: optionalSecret,
 });
 
@@ -29,6 +31,8 @@ function readServerEnv(): ServerEnv {
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
     BLOB_STORE_ID: process.env.BLOB_STORE_ID,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    EMAIL_FROM: process.env.EMAIL_FROM,
     HMAC_SECRET: process.env.HMAC_SECRET,
   });
 
@@ -55,6 +59,11 @@ export function getDatabaseUrl(): string {
 export function isBlobConfigured(): boolean {
   const env = getServerEnv();
   return Boolean(env.BLOB_READ_WRITE_TOKEN || env.BLOB_STORE_ID);
+}
+
+export function isEmailConfigured(): boolean {
+  const env = getServerEnv();
+  return Boolean(env.RESEND_API_KEY && env.EMAIL_FROM);
 }
 
 export function getHmacSecret(): string {

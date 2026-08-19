@@ -2,6 +2,8 @@
 
 import { notFound, redirect } from "next/navigation";
 import { requireDashboardContext } from "@/server/auth/guard";
+import { getDb } from "@/server/db";
+import { sendFormRequestInvitation } from "@/server/email/invitation";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 import {
   formRequestIdSchema,
@@ -9,6 +11,7 @@ import {
   readCreateFormRequestFields,
 } from "@/server/forms/schema";
 import { writeCreatedTokenCookie } from "@/server/forms/cookie";
+import { getPublicOrigin, publicFormUrl } from "@/server/forms/request-meta";
 import {
   cancelFormRequest,
   createFormRequest,
@@ -39,7 +42,29 @@ export async function createFormRequestAction(
   }
 
   await writeCreatedTokenCookie(created.request.id, created.rawToken);
-  redirect(`/dashboard/requests/${created.request.id}`);
+
+  const formUrl = publicFormUrl(await getPublicOrigin(), created.rawToken);
+  let emailFailed = false;
+
+  try {
+    await sendFormRequestInvitation(getDb(), {
+      organizationId: tenant.organizationId,
+      organizationName: tenant.organizationName,
+      recipientEmail: created.request.recipientEmail,
+      recipientName: created.request.recipientName,
+      formRequestId: created.request.id,
+      formUrl,
+      expiresAt: created.request.expiresAt,
+    });
+  } catch {
+    emailFailed = true;
+  }
+
+  redirect(
+    emailFailed
+      ? `/dashboard/requests/${created.request.id}?email=failed`
+      : `/dashboard/requests/${created.request.id}`,
+  );
 }
 
 export async function cancelFormRequestAction(formData: FormData) {

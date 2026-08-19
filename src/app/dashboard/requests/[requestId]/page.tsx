@@ -15,11 +15,14 @@ import { asFieldValueMap } from "@/server/forms/values";
 
 export default async function RequestDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ requestId: string }>;
+  searchParams: Promise<{ email?: string }>;
 }) {
   const tenant = await requireDashboardContext();
   const { requestId } = await params;
+  const { email: emailParam } = await searchParams;
 
   let detail;
 
@@ -56,6 +59,13 @@ export default async function RequestDetailPage({
           {formatDateTime(detail.request.expiresAt)}
         </p>
       </div>
+
+      {emailParam === "failed" ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+          Het formulierverzoek is aangemaakt, maar de uitnodigingsmail kon niet worden verstuurd. Gebruik
+          onderstaande link om de cliënt handmatig uit te nodigen.
+        </p>
+      ) : null}
 
       {rawToken ? (
         <div className="rounded-lg border border-neutral-200 bg-white p-4">

@@ -38,6 +38,13 @@ export class StorageError extends AppError {
   }
 }
 
+export class EmailError extends AppError {
+  constructor(message = "Email is not available") {
+    super(message, 503, "email_unavailable");
+    this.name = "EmailError";
+  }
+}
+
 export class IntegrityError extends AppError {
   constructor(message = "Stored file does not match expected hash") {
     super(message, 409, "integrity_error");

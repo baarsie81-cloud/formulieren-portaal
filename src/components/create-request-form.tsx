@@ -15,10 +15,12 @@ export function CreateRequestForm({
   clients,
   templates,
   defaultClientId,
+  emailEnabled,
 }: {
   clients: Option[];
   templates: Option[];
   defaultClientId?: string;
+  emailEnabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState(createFormRequestAction, initialState);
 
@@ -76,8 +78,10 @@ export function CreateRequestForm({
       </div>
 
       <p className="text-sm text-neutral-600">
-        Er wordt een beveiligde link gemaakt. Het PDF-ontwerp blijft ongewijzigd; de cliënt vult de
-        bestaande AcroForm-velden in. Ondertekenen volgt in een volgende fase.
+        {emailEnabled
+          ? "Na het aanmaken ontvangt de cliënt per e-mail een beveiligde link. U kunt de link ook op de detailpagina kopiëren."
+          : "Er wordt een beveiligde link gemaakt die u op de detailpagina kunt kopiëren."}{" "}
+        Het PDF-ontwerp blijft ongewijzigd; de cliënt vult de bestaande AcroForm-velden in.
       </p>
 
       <div className="flex items-center gap-3 pt-2">
@@ -86,7 +90,7 @@ export function CreateRequestForm({
           disabled={pending}
           className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
         >
-          {pending ? "Link maken…" : "Link maken"}
+          {pending ? "Versturen…" : emailEnabled ? "Versturen" : "Link maken"}
         </button>
         <Link href="/dashboard/requests" className="text-sm text-neutral-600 hover:text-neutral-950">
           Annuleren
