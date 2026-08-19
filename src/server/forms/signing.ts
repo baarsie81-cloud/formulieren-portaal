@@ -7,9 +7,11 @@ import { writeClientAuditEvent } from "@/server/audit/log";
 import { getDb } from "@/server/db";
 import {
   acceptances,
+  documentTemplates,
   formDocuments,
   formRequests,
   formSessions,
+  organizations,
   secureTokens,
   signatures,
 } from "@/server/db/schema";
@@ -22,7 +24,6 @@ import { parseRawToken } from "@/server/forms/schema";
 import {
   fillableFields,
   parseFieldsSchemaSnapshot,
-  signatureFields,
 } from "@/server/forms/snapshot";
 import {
   effectiveRequestStatus,
@@ -58,6 +59,8 @@ type ResolvedSigningContext = {
   document: typeof formDocuments.$inferSelect;
   session: typeof formSessions.$inferSelect & { nonce: string };
   snapshot: NonNullable<ReturnType<typeof parseFieldsSchemaSnapshot>>;
+  organizationName: string;
+  documentName: string;
 };
 
 export async function signAndFinalizePublicForm(
@@ -83,11 +86,23 @@ export async function signAndFinalizePublicForm(
     templateSha256: resolved.document.templateSha256,
   });
 
+  const now = new Date();
+
   const finalPdfBytes = await buildFinalPdfBytes({
     templateBytes,
     snapshot: resolved.snapshot,
     values: asFieldValueMap(resolved.document.fieldValues),
-    signaturePngBytes: signatureFields(resolved.snapshot).length > 0 ? signaturePngBytes : null,
+    signaturePngBytes,
+    audit: {
+      organizationName: resolved.organizationName,
+      documentName: resolved.documentName,
+      signerName: input.signerName.trim(),
+      signedAt: now,
+      declarationText: SIGNATURE_DECLARATION_TEXT,
+      formDocumentId: resolved.document.id,
+      formRequestId: resolved.request.id,
+      templateSha256: resolved.document.templateSha256,
+    },
   });
 
   const finalPdfSha256 = sha256Hex(finalPdfBytes);
@@ -97,7 +112,6 @@ export async function signAndFinalizePublicForm(
     resolved.document.id,
     finalPdfSha256,
   );
-  const now = new Date();
   const ipHash = hashIp(getHmacSecret(), meta.ip);
   const db = getDb();
 
@@ -283,6 +297,8 @@ async function resolveSigningContext(rawToken: string): Promise<ResolvedSigningC
     .select({
       request: formRequests,
       document: formDocuments,
+      organizationName: organizations.name,
+      documentName: documentTemplates.name,
     })
     .from(formRequests)
     .innerJoin(
@@ -290,6 +306,14 @@ async function resolveSigningContext(rawToken: string): Promise<ResolvedSigningC
       and(
         eq(formDocuments.organizationId, formRequests.organizationId),
         eq(formDocuments.formRequestId, formRequests.id),
+      ),
+    )
+    .innerJoin(organizations, eq(organizations.id, formRequests.organizationId))
+    .innerJoin(
+      documentTemplates,
+      and(
+        eq(documentTemplates.organizationId, formDocuments.organizationId),
+        eq(documentTemplates.id, formDocuments.documentTemplateId),
       ),
     )
     .where(
@@ -361,5 +385,7 @@ async function resolveSigningContext(rawToken: string): Promise<ResolvedSigningC
     document: row.document,
     session: { ...session, nonce: cookie.nonce },
     snapshot,
+    organizationName: row.organizationName,
+    documentName: row.documentName,
   };
 }
