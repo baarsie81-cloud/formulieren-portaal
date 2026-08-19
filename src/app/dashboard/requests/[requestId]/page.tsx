@@ -74,16 +74,31 @@ export default async function RequestDetailPage({
         </div>
       )}
 
-      {detail.fillSubmitted ? (
+      {detail.fillSubmitted && !detail.isFinalized ? (
         <p className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
-          De cliënt heeft de gegevens ingediend. Klaar voor ondertekening (volgende fase).
+          De cliënt heeft de gegevens ingediend en kan nu ondertekenen.
         </p>
+      ) : null}
+
+      {detail.isFinalized ? (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <p>Dit formulier is definitief ondertekend.</p>
+          <p className="mt-1 font-mono text-xs">
+            SHA-256: {detail.document.finalPdfSha256}
+          </p>
+          <Link
+            href={`/dashboard/requests/${detail.request.id}/final`}
+            className="mt-3 inline-block font-medium underline"
+          >
+            Definitief audit-PDF downloaden
+          </Link>
+        </div>
       ) : null}
 
       <div className="rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="text-lg font-semibold tracking-tight">Ingevulde velden</h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Waarden uit de bestaande AcroForm. Handtekeningvelden blijven leeg tot de volgende fase.
+          Waarden uit de bestaande AcroForm. Handtekeningvelden worden ingevuld bij ondertekenen.
         </p>
         {snapshot.length === 0 ? (
           <p className="mt-3 text-sm text-neutral-600">Geen veldmapping opgeslagen.</p>
@@ -99,7 +114,9 @@ export default async function RequestDetailPage({
                 </dt>
                 <dd className="mt-1 whitespace-pre-wrap text-neutral-700">
                   {field.fieldType === "signature_area"
-                    ? "Later, bij ondertekenen"
+                    ? detail.isFinalized
+                      ? "Ondertekend in definitief document"
+                      : "Nog niet ondertekend"
                     : formatStoredValue(values[field.valueKey])}
                 </dd>
               </div>
@@ -110,7 +127,7 @@ export default async function RequestDetailPage({
           href={`/dashboard/requests/${detail.request.id}/preview`}
           className="mt-4 inline-block text-sm text-neutral-900 underline"
         >
-          Ingevuld PDF bekijken
+          Ingevuld PDF bekijken (concept)
         </Link>
       </div>
 

@@ -39,3 +39,58 @@ export function assertTemplateBlobKey(
     throw new Error("Blob key does not match template identity");
   }
 }
+
+/** Content-addressed private signature image path. */
+export function signaturePngBlobKey(
+  organizationId: string,
+  documentId: string,
+  sha256: string,
+): string {
+  assertUuid(organizationId, "organization id");
+  assertUuid(documentId, "document id");
+  assertSha256(sha256);
+
+  return `${organizationId}/signatures/${documentId}/${sha256}.png`;
+}
+
+export function assertSignatureBlobKey(
+  blobKey: string,
+  organizationId: string,
+  documentId: string,
+  sha256: string,
+): void {
+  const expected = signaturePngBlobKey(organizationId, documentId, sha256);
+
+  if (blobKey !== expected) {
+    throw new Error("Blob key does not match signature identity");
+  }
+}
+
+/** Content-addressed private final audit PDF path. */
+export function finalPdfBlobKey(
+  organizationId: string,
+  requestId: string,
+  documentId: string,
+  sha256: string,
+): string {
+  assertUuid(organizationId, "organization id");
+  assertUuid(requestId, "request id");
+  assertUuid(documentId, "document id");
+  assertSha256(sha256);
+
+  return `${organizationId}/final/${requestId}/${documentId}/${sha256}.pdf`;
+}
+
+export function assertFinalPdfBlobKey(
+  blobKey: string,
+  organizationId: string,
+  requestId: string,
+  documentId: string,
+  sha256: string,
+): void {
+  const expected = finalPdfBlobKey(organizationId, requestId, documentId, sha256);
+
+  if (blobKey !== expected) {
+    throw new Error("Blob key does not match final PDF identity");
+  }
+}

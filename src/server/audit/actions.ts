@@ -13,6 +13,9 @@ export const AUDIT_ACTIONS = {
   FORM_SESSION_STARTED: "form_session.started",
   FORM_DOCUMENT_SAVED: "form_document.saved",
   FORM_DOCUMENT_FILL_SUBMITTED: "form_document.fill_submitted",
+  SIGNATURE_CREATED: "signature.created",
+  ACCEPTANCE_RECORDED: "acceptance.recorded",
+  FORM_DOCUMENT_FINALIZED: "form_document.finalized",
 } as const;
 
 export const AUDIT_ENTITY_TYPES = {
@@ -21,4 +24,6 @@ export const AUDIT_ENTITY_TYPES = {
   FORM_REQUEST: "form_request",
   FORM_DOCUMENT: "form_document",
   FORM_SESSION: "form_session",
+  SIGNATURE: "signature",
+  ACCEPTANCE: "acceptance",
 } as const;

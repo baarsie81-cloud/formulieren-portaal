@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { effectiveRequestStatus, isWritableRequestStatus } from "@/server/forms/status";
+import {
+  effectiveRequestStatus,
+  isSignableRequestStatus,
+  isWritableRequestStatus,
+} from "@/server/forms/status";
 
 describe("effectiveRequestStatus", () => {
   it("marks open requests expired after expiresAt without changing terminal states", () => {
@@ -17,5 +21,11 @@ describe("effectiveRequestStatus", () => {
     expect(isWritableRequestStatus("sent")).toBe(true);
     expect(isWritableRequestStatus("cancelled")).toBe(false);
     expect(isWritableRequestStatus("expired")).toBe(false);
+  });
+
+  it("allows signing while opened or in_progress", () => {
+    expect(isSignableRequestStatus("opened")).toBe(true);
+    expect(isSignableRequestStatus("in_progress")).toBe(true);
+    expect(isSignableRequestStatus("completed")).toBe(false);
   });
 });

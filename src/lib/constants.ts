@@ -49,9 +49,16 @@ export const FORM_REQUEST_STATUS_LABELS: Record<FormRequestStatus, string> = {
 
 export const FORM_SESSION_COOKIE = "fp_form_session";
 export const FORM_CREATED_TOKEN_COOKIE = "fp_created_form_token";
+export const FORM_SIGNED_COOKIE = "fp_form_signed";
 
 /** 32 random bytes as base64url (no padding). */
 export const RAW_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 export const PUBLIC_FORM_INVALID_MESSAGE =
   "Deze link is ongeldig of verlopen. Neem contact op met de praktijk als je een nieuw formulier verwacht.";
+
+/** Max PNG size for a client-drawn or typed-rendered signature. */
+export const MAX_SIGNATURE_PNG_BYTES = 512 * 1024;
+
+export const SIGNATURE_DECLARATION_TEXT =
+  "Ik verklaar dat de ingevulde gegevens naar waarheid zijn ingevuld en ga akkoord met het ondertekenen van dit document.";

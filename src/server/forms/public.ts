@@ -44,6 +44,8 @@ export type PublicFormContext = {
   recipientName: string;
   started: boolean;
   fillSubmitted: boolean;
+  readyForSigning: boolean;
+  finalized: boolean;
   snapshot: FieldSchemaSnapshot[];
   values: FieldValueMap;
 };
@@ -63,12 +65,18 @@ export async function getPublicFormContext(rawToken: string): Promise<PublicForm
     resolved.request.organizationId,
     resolved.request.id,
   );
+  const fillable = fillableFields(resolved.snapshot);
 
   return {
     organizationName: resolved.organizationName,
     recipientName: resolved.request.recipientName,
     started: session != null,
     fillSubmitted,
+    readyForSigning:
+      session != null &&
+      (fillSubmitted || fillable.length === 0) &&
+      resolved.document.status !== "finalized",
+    finalized: resolved.document.status === "finalized",
     snapshot: resolved.snapshot,
     values: asFieldValueMap(resolved.document.fieldValues),
   };

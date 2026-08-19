@@ -42,7 +42,6 @@ export function PublicFormFill({
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">Formulier invullen</h1>
         <p className="mt-2 text-neutral-600">
           Hallo {recipientName}. Vul de velden in zoals ze in het originele PDF-document staan.
-          Ondertekenen volgt later.
         </p>
       </div>
 

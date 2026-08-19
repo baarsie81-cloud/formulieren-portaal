@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
-import { FORM_CREATED_TOKEN_COOKIE, FORM_SESSION_COOKIE } from "@/lib/constants";
+import { FORM_CREATED_TOKEN_COOKIE, FORM_SESSION_COOKIE, FORM_SIGNED_COOKIE } from "@/lib/constants";
 import { rawTokenSchema } from "@/server/forms/schema";
 import {
   parseFormSessionCookie,
@@ -62,4 +62,39 @@ export async function readCreatedTokenCookie(requestId: string): Promise<string 
   }
 
   return rawToken;
+}
+
+export async function writeFormSignedCookie(recipientName: string) {
+  const store = await cookies();
+  const encoded = Buffer.from(recipientName, "utf8").toString("base64url");
+
+  store.set(FORM_SIGNED_COOKIE, encoded, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/f",
+    maxAge: 300,
+  });
+}
+
+export async function readAndClearFormSignedCookie(): Promise<string | null> {
+  const store = await cookies();
+  const value = store.get(FORM_SIGNED_COOKIE)?.value;
+
+  if (!value) {
+    return null;
+  }
+
+  store.delete(FORM_SIGNED_COOKIE);
+
+  try {
+    return Buffer.from(value, "base64url").toString("utf8");
+  } catch {
+    return null;
+  }
+}
+
+export async function clearFormSessionCookie() {
+  const store = await cookies();
+  store.delete(FORM_SESSION_COOKIE);
 }

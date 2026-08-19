@@ -73,7 +73,7 @@ Private object storage (Vercel Blob) bewaart het bestand. De database bewaart pa
 - Automatische PDF-conversie (bijv. platte PDF → AcroForm)
 - Alternatieve veldmapping buiten AcroForm om
 
-## Application (phase 5)
+## Application (phase 6)
 
 Staff dashboard at `/dashboard`. Domain workflows so far:
 
@@ -83,9 +83,11 @@ Staff dashboard at `/dashboard`. Domain workflows so far:
 4. Upload an existing professionally designed PDF with AcroForm fields as a **document template**.
 5. Map the PDF’s existing AcroForm fields (`pdf_field_name` → `value_key` / type). The PDF itself is not edited.
 6. Create a **form request** for one client and one template. A high-entropy token is generated; only `token_hash` is stored.
-7. The client opens `/f/[token]`, starts a form session (httpOnly nonce cookie), fills the existing AcroForm fields, and saves values. Submitting the fill prepares signing (next phase).
+7. The client opens `/f/[token]`, starts a form session (httpOnly nonce cookie), fills the existing AcroForm fields, and submits the fill.
+8. The client signs (drawn or typed signature PNG + declaration acceptance). The server stores signature/acceptance evidence, generates the **definitive audit PDF** once, stores it in private Blob with SHA-256, finalizes the document, completes the request, and revokes the token.
+9. Staff download the stored final PDF from the dashboard (`/dashboard/requests/[requestId]/final`). Previews remain on-the-fly; the final PDF is never regenerated.
 
-Not in this phase: signing, final audit-PDF generation, reminders, or sending e-mail.
+Not in this phase: e-mail send, reminders.
 
 See [database.md](./database.md) for the V1 data model.
 See [auth.md](./auth.md) and [security.md](./security.md) for Clerk mapping and tenant rules.
