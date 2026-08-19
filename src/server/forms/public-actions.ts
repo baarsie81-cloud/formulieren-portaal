@@ -7,7 +7,7 @@ import {
   loadFormCompletionEmailContext,
   sendFormCompletionNotifications,
 } from "@/server/email/confirmation";
-import { ConflictError, TokenAccessError, ValidationError } from "@/server/errors";
+import { AppError, ConflictError, TokenAccessError, ValidationError } from "@/server/errors";
 import {
   clearFormSessionCookie,
   writeFormSignedCookie,
@@ -168,6 +168,11 @@ function toPublicFormError(error: unknown): string {
 
   if (error instanceof Error && error.message === "DATABASE_URL is not set") {
     return "Het formulier is tijdelijk niet beschikbaar.";
+  }
+
+  // Storage, email, integrity, and other platform errors must not crash the page.
+  if (error instanceof AppError) {
+    return "Er is een technische fout opgetreden. Probeer het later opnieuw of neem contact op met de praktijk.";
   }
 
   throw error;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ConflictError } from "@/server/errors";
+import { ConflictError, StorageError } from "@/server/errors";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -75,6 +75,16 @@ describe("signPublicFormAction", () => {
     const result = await signPublicFormAction({ error: null, saved: false }, buildFormData());
 
     expect(result.error).toBeTruthy();
+    expect(sendFormCompletionNotifications).not.toHaveBeenCalled();
+  });
+
+  it("returns a user-friendly error instead of crashing when storage fails", async () => {
+    signAndFinalizePublicForm.mockRejectedValue(new StorageError("BLOB_READ_WRITE_TOKEN is not set"));
+
+    const result = await signPublicFormAction({ error: null, saved: false }, buildFormData());
+
+    expect(result.error).toBeTruthy();
+    expect(result.error).not.toContain("BLOB_READ_WRITE_TOKEN");
     expect(sendFormCompletionNotifications).not.toHaveBeenCalled();
   });
 
