@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { PublicPdfPageOverlay } from "@/components/pdf/public-pdf-page-overlay";
 import { DOCUMENT_FIELD_TYPE_LABELS, type DocumentFieldType } from "@/lib/constants";
+import { pickOverlayInputFields } from "@/lib/pdf-overlay-fields";
 import type { FieldSchemaSnapshot } from "@/server/forms/snapshot";
 import {
   savePublicFormAction,
@@ -32,6 +34,14 @@ export function PublicFormFill({
   );
   const fillable = snapshot.filter((field) => field.fieldType !== "signature_area");
   const signatures = snapshot.filter((field) => field.fieldType === "signature_area");
+  const overlayFields = pickOverlayInputFields(fillable);
+  const overlayKeys = new Set(overlayFields.map((field) => field.valueKey));
+  const [overlayEnabled, setOverlayEnabled] = useState(() => overlayFields.length > 0);
+  const useOverlay = overlayEnabled && overlayFields.length > 0;
+  const listedFields = useOverlay
+    ? fillable.filter((field) => !overlayKeys.has(field.valueKey))
+    : fillable;
+  const pdfUrl = `/f/${encodeURIComponent(token)}/pdf`;
   const error = saveState.error ?? submitState.error;
   const pending = saving || submitting;
 
@@ -60,7 +70,24 @@ export function PublicFormFill({
       <form className="flex flex-col gap-4">
         <input type="hidden" name="token" value={token} />
 
-        {fillable.map((field) => (
+        {useOverlay ? (
+          <PublicPdfPageOverlay
+            pdfUrl={pdfUrl}
+            fields={overlayFields}
+            values={values}
+            onError={() => setOverlayEnabled(false)}
+          />
+        ) : (
+          <div className="overflow-hidden rounded-md border border-neutral-200 bg-neutral-100">
+            <iframe
+              title="Origineel formulier (PDF)"
+              src={pdfUrl}
+              className="block h-[min(70vh,56rem)] w-full bg-white"
+            />
+          </div>
+        )}
+
+        {listedFields.map((field) => (
           <PublicField
             key={field.valueKey}
             field={field}
