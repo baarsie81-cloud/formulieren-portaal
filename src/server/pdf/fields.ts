@@ -21,12 +21,20 @@ export type ExtractedPdfField = {
   y: number | null;
   width: number | null;
   height: number | null;
+  pageWidth: number | null;
+  pageHeight: number | null;
   isRequired: boolean;
 };
 
 export type ExtractedPdf = {
   pageCount: number;
   fields: ExtractedPdfField[];
+};
+
+export type PdfPageSize = {
+  pageNumber: number;
+  width: number;
+  height: number;
 };
 
 export async function extractPdfFields(bytes: Uint8Array): Promise<ExtractedPdf> {
@@ -69,16 +77,20 @@ export async function extractPdfFields(bytes: Uint8Array): Promise<ExtractedPdf>
     const widget = field.acroField.getWidgets()[0];
     const rect = widget?.getRectangle();
     const valueKey = uniqueValueKey(toValueKey(pdfFieldName), usedValueKeys);
+    const pageNumber = pageNumberForWidget(pdf, widget?.P());
+    const pageSize = pageSizeForNumber(pdf, pageNumber);
 
     fields.push({
       pdfFieldName,
       valueKey,
       fieldType: inferFieldType(field),
-      pageNumber: pageNumberForWidget(pdf, widget?.P()),
+      pageNumber,
       x: roundCoord(rect?.x),
       y: roundCoord(rect?.y),
       width: roundCoord(rect?.width),
       height: roundCoord(rect?.height),
+      pageWidth: pageSize?.width ?? null,
+      pageHeight: pageSize?.height ?? null,
       isRequired: field.isRequired(),
     });
   }
@@ -87,6 +99,29 @@ export async function extractPdfFields(bytes: Uint8Array): Promise<ExtractedPdf>
     pageCount: pdf.getPageCount(),
     fields,
   };
+}
+
+/** Returns 1-based page sizes from the template PDF MediaBox. */
+export async function extractPdfPageSizes(bytes: Uint8Array): Promise<PdfPageSize[]> {
+  let pdf: PDFDocument;
+
+  try {
+    pdf = await PDFDocument.load(bytes, {
+      ignoreEncryption: false,
+      updateMetadata: false,
+    });
+  } catch {
+    throw new ValidationError("File must be a valid PDF");
+  }
+
+  return pdf.getPages().map((page, index) => {
+    const { width, height } = page.getSize();
+    return {
+      pageNumber: index + 1,
+      width: roundCoord(width) ?? width,
+      height: roundCoord(height) ?? height,
+    };
+  });
 }
 
 export function toValueKey(pdfFieldName: string): string {
@@ -165,6 +200,24 @@ function pageNumberForWidget(
     );
 
   return index >= 0 ? index + 1 : 1;
+}
+
+function pageSizeForNumber(
+  pdf: PDFDocument,
+  pageNumber: number,
+): { width: number; height: number } | null {
+  const page = pdf.getPages()[pageNumber - 1];
+
+  if (!page) {
+    return null;
+  }
+
+  const { width, height } = page.getSize();
+
+  return {
+    width: roundCoord(width) ?? width,
+    height: roundCoord(height) ?? height,
+  };
 }
 
 function roundCoord(value: number | undefined): number | null {

@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { DOCUMENT_FIELD_TYPES, type DocumentFieldType } from "@/lib/constants";
 
+const nullableCoordSchema = z
+  .number()
+  .finite()
+  .nullable()
+  .optional()
+  .transform((value) => value ?? null);
+
 export type FieldSchemaSnapshot = {
   pdfFieldName: string;
   valueKey: string;
@@ -8,6 +15,12 @@ export type FieldSchemaSnapshot = {
   isRequired: boolean;
   sortOrder: number;
   pageNumber: number;
+  x: number | null;
+  y: number | null;
+  width: number | null;
+  height: number | null;
+  pageWidth: number | null;
+  pageHeight: number | null;
 };
 
 export const fieldSchemaSnapshotSchema = z.object({
@@ -17,17 +30,31 @@ export const fieldSchemaSnapshotSchema = z.object({
   isRequired: z.boolean(),
   sortOrder: z.number().int(),
   pageNumber: z.number().int().min(1),
+  x: nullableCoordSchema,
+  y: nullableCoordSchema,
+  width: nullableCoordSchema,
+  height: nullableCoordSchema,
+  pageWidth: nullableCoordSchema,
+  pageHeight: nullableCoordSchema,
 });
 
+export type SnapshotFieldSource = {
+  pdfFieldName: string;
+  valueKey: string;
+  fieldType: DocumentFieldType;
+  isRequired: boolean;
+  sortOrder: number;
+  pageNumber: number;
+  x?: number | null;
+  y?: number | null;
+  width?: number | null;
+  height?: number | null;
+  pageWidth?: number | null;
+  pageHeight?: number | null;
+};
+
 export function toFieldsSchemaSnapshot(
-  fields: readonly {
-    pdfFieldName: string;
-    valueKey: string;
-    fieldType: DocumentFieldType;
-    isRequired: boolean;
-    sortOrder: number;
-    pageNumber: number;
-  }[],
+  fields: readonly SnapshotFieldSource[],
 ): FieldSchemaSnapshot[] {
   return fields.map((field) => ({
     pdfFieldName: field.pdfFieldName,
@@ -36,6 +63,12 @@ export function toFieldsSchemaSnapshot(
     isRequired: field.isRequired,
     sortOrder: field.sortOrder,
     pageNumber: field.pageNumber,
+    x: field.x ?? null,
+    y: field.y ?? null,
+    width: field.width ?? null,
+    height: field.height ?? null,
+    pageWidth: field.pageWidth ?? null,
+    pageHeight: field.pageHeight ?? null,
   }));
 }
 
@@ -46,7 +79,9 @@ export function parseFieldsSchemaSnapshot(value: unknown): FieldSchemaSnapshot[]
     return null;
   }
 
-  return [...parsed.data].sort((a, b) => a.sortOrder - b.sortOrder || a.pdfFieldName.localeCompare(b.pdfFieldName));
+  return [...parsed.data].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.pdfFieldName.localeCompare(b.pdfFieldName),
+  );
 }
 
 export function fillableFields(snapshot: readonly FieldSchemaSnapshot[]): FieldSchemaSnapshot[] {

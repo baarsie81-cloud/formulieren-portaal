@@ -1,6 +1,10 @@
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { extractPdfFields, toValueKey } from "@/server/pdf/fields";
+import {
+  extractPdfFields,
+  extractPdfPageSizes,
+  toValueKey,
+} from "@/server/pdf/fields";
 
 describe("toValueKey", () => {
   it("slugifies PDF field names into stable keys", () => {
@@ -38,6 +42,7 @@ describe("extractPdfFields", () => {
 
     const bytes = await pdf.save();
     const extracted = await extractPdfFields(bytes);
+    const { width: pageWidth, height: pageHeight } = page.getSize();
 
     expect(extracted.pageCount).toBe(1);
     expect(extracted.fields.map((field) => field.pdfFieldName)).toEqual([
@@ -50,6 +55,8 @@ describe("extractPdfFields", () => {
       fieldType: "text",
       isRequired: true,
       pageNumber: 1,
+      pageWidth,
+      pageHeight,
     });
     expect(extracted.fields[1]?.fieldType).toBe("textarea");
     expect(extracted.fields[2]?.fieldType).toBe("checkbox");
@@ -59,6 +66,51 @@ describe("extractPdfFields", () => {
     expect(extracted.fields[0]?.y).not.toBeNull();
   });
 
+  it("captures geometry and page sizes across multiple pages", async () => {
+    const pdf = await PDFDocument.create();
+    const page1 = pdf.addPage([595.28, 841.89]);
+    const page2 = pdf.addPage([612, 792]);
+    const form = pdf.getForm();
+
+    form.createTextField("name_p1").addToPage(page1, {
+      x: 50,
+      y: 700,
+      width: 200,
+      height: 20,
+    });
+    form.createTextField("city_p2").addToPage(page2, {
+      x: 40,
+      y: 500,
+      width: 180,
+      height: 24,
+    });
+
+    const extracted = await extractPdfFields(await pdf.save());
+
+    expect(extracted.pageCount).toBe(2);
+    expect(extracted.fields).toHaveLength(2);
+    expect(extracted.fields[0]).toMatchObject({
+      pdfFieldName: "name_p1",
+      pageNumber: 1,
+      pageWidth: 595.28,
+      pageHeight: 841.89,
+    });
+    expect(extracted.fields[0]?.x).not.toBeNull();
+    expect(extracted.fields[0]?.y).not.toBeNull();
+    expect(extracted.fields[0]?.width).toBeGreaterThan(0);
+    expect(extracted.fields[0]?.height).toBeGreaterThan(0);
+    expect(extracted.fields[1]).toMatchObject({
+      pdfFieldName: "city_p2",
+      pageNumber: 2,
+      pageWidth: 612,
+      pageHeight: 792,
+    });
+    expect(extracted.fields[1]?.x).not.toBeNull();
+    expect(extracted.fields[1]?.y).not.toBeNull();
+    expect(extracted.fields[1]?.width).toBeGreaterThan(0);
+    expect(extracted.fields[1]?.height).toBeGreaterThan(0);
+  });
+
   it("returns no fields for a PDF without a form", async () => {
     const pdf = await PDFDocument.create();
     pdf.addPage();
@@ -66,5 +118,20 @@ describe("extractPdfFields", () => {
 
     expect(extracted.pageCount).toBe(1);
     expect(extracted.fields).toEqual([]);
+  });
+});
+
+describe("extractPdfPageSizes", () => {
+  it("returns one size entry per page", async () => {
+    const pdf = await PDFDocument.create();
+    pdf.addPage([595.28, 841.89]);
+    pdf.addPage([612, 792]);
+
+    const sizes = await extractPdfPageSizes(await pdf.save());
+
+    expect(sizes).toEqual([
+      { pageNumber: 1, width: 595.28, height: 841.89 },
+      { pageNumber: 2, width: 612, height: 792 },
+    ]);
   });
 });

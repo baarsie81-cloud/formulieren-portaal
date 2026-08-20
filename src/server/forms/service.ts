@@ -16,7 +16,6 @@ import {
   secureTokens,
 } from "@/server/db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
-import { generateRawSecret, hashSecret } from "@/server/forms/token";
 import type { CreateFormRequestInput } from "@/server/forms/schema";
 import { formRequestIdSchema } from "@/server/forms/schema";
 import { documentsInRequest, requestInOrganization } from "@/server/forms/scope";
@@ -25,7 +24,9 @@ import {
   effectiveRequestStatus,
   isWritableRequestStatus,
 } from "@/server/forms/status";
-import { getTemplate, listTemplateFields } from "@/server/templates/service";
+import { generateRawSecret, hashSecret } from "@/server/forms/token";
+import { extractPdfPageSizes } from "@/server/pdf/fields";
+import { getTemplate, listTemplateFields, readTemplatePdfBytes } from "@/server/templates/service";
 
 function parseRequestId(requestId: string): string {
   const parsed = formRequestIdSchema.safeParse(requestId);
@@ -169,7 +170,8 @@ export async function createFormRequest(
     throw new ValidationError("Template has no AcroForm fields");
   }
 
-  const snapshot = toFieldsSchemaSnapshot(fields);
+  const fieldsForSnapshot = await withPageSizesForSnapshot(tenant, template.id, fields);
+  const snapshot = toFieldsSchemaSnapshot(fieldsForSnapshot);
   const rawToken = generateRawSecret();
   const tokenHash = hashSecret(rawToken);
   const expiresAt = new Date(Date.now() + FORM_REQUEST_TTL_DAYS * 24 * 60 * 60 * 1000);
@@ -372,4 +374,30 @@ async function revokeActiveTokensAndSessions(
         isNull(formSessions.revokedAt),
       ),
     );
+}
+
+async function withPageSizesForSnapshot<
+  T extends {
+    pageNumber: number;
+    pageWidth: number | null;
+    pageHeight: number | null;
+  },
+>(tenant: TenantContext, templateId: string, fields: T[]): Promise<T[]> {
+  if (fields.every((field) => field.pageWidth != null && field.pageHeight != null)) {
+    return fields;
+  }
+
+  const { bytes } = await readTemplatePdfBytes(tenant, templateId);
+  const pageSizes = await extractPdfPageSizes(bytes);
+  const byPage = new Map(pageSizes.map((page) => [page.pageNumber, page]));
+
+  return fields.map((field) => {
+    const page = byPage.get(field.pageNumber);
+
+    return {
+      ...field,
+      pageWidth: field.pageWidth ?? page?.width ?? null,
+      pageHeight: field.pageHeight ?? page?.height ?? null,
+    };
+  });
 }

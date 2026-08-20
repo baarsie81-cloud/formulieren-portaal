@@ -67,6 +67,8 @@ export const documentFields = pgTable(
     y: doublePrecision("y"),
     width: doublePrecision("width"),
     height: doublePrecision("height"),
+    pageWidth: doublePrecision("page_width"),
+    pageHeight: doublePrecision("page_height"),
     isRequired: boolean("is_required").notNull().default(false),
     validation: jsonb("validation").$type<JsonObject | null>(),
     sortOrder: integer("sort_order").notNull().default(0),

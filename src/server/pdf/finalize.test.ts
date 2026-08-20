@@ -2,6 +2,7 @@ import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { SIGNATURE_DECLARATION_TEXT } from "@/lib/constants";
 import { collectAuditPageLines } from "@/server/pdf/audit-page";
+import type { FieldSchemaSnapshot } from "@/server/forms/snapshot";
 import { buildFinalPdfBytes } from "@/server/pdf/finalize";
 import { sha256Hex } from "@/server/pdf/hash";
 
@@ -23,6 +24,21 @@ const AUDIT = {
   templateSha256: "a".repeat(64),
 };
 
+const NO_GEOMETRY = {
+  x: null,
+  y: null,
+  width: null,
+  height: null,
+  pageWidth: null,
+  pageHeight: null,
+} as const;
+
+function snap(
+  field: Omit<FieldSchemaSnapshot, keyof typeof NO_GEOMETRY>,
+): FieldSchemaSnapshot {
+  return { ...field, ...NO_GEOMETRY };
+}
+
 describe("buildFinalPdfBytes", () => {
   it("appends an audit page to the template PDF", async () => {
     const pdf = await PDFDocument.create();
@@ -37,14 +53,14 @@ describe("buildFinalPdfBytes", () => {
     const finalBytes = await buildFinalPdfBytes({
       templateBytes: await pdf.save(),
       snapshot: [
-        {
+        snap({
           pdfFieldName: "client_name",
           valueKey: "client_name",
           fieldType: "text",
           isRequired: true,
           sortOrder: 0,
           pageNumber: 1,
-        },
+        }),
       ],
       values: { client_name: "Ada Berg" },
       signaturePngBytes: PNG_BYTES,
@@ -87,14 +103,14 @@ describe("buildFinalPdfBytes", () => {
     const finalBytes = await buildFinalPdfBytes({
       templateBytes: await pdf.save(),
       snapshot: [
-        {
+        snap({
           pdfFieldName: "note",
           valueKey: "note",
           fieldType: "text",
           isRequired: false,
           sortOrder: 0,
           pageNumber: 1,
-        },
+        }),
       ],
       values: { note: "Klaar" },
       signaturePngBytes: PNG_BYTES,
@@ -120,22 +136,22 @@ describe("buildFinalPdfBytes", () => {
     const finalBytes = await buildFinalPdfBytes({
       templateBytes: await pdf.save(),
       snapshot: [
-        {
+        snap({
           pdfFieldName: "note",
           valueKey: "note",
           fieldType: "text",
           isRequired: false,
           sortOrder: 0,
           pageNumber: 1,
-        },
-        {
+        }),
+        snap({
           pdfFieldName: "missing_signature",
           valueKey: "signature1",
           fieldType: "signature_area",
           isRequired: true,
           sortOrder: 1,
           pageNumber: 1,
-        },
+        }),
       ],
       values: { note: "Klaar" },
       signaturePngBytes: PNG_BYTES,

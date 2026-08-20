@@ -132,6 +132,8 @@ export async function createTemplate(
           y: field.y,
           width: field.width,
           height: field.height,
+          pageWidth: field.pageWidth,
+          pageHeight: field.pageHeight,
           isRequired: field.isRequired,
           sortOrder: index,
         })),
