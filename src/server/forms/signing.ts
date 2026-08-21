@@ -23,7 +23,6 @@ import type { RequestMeta } from "@/server/forms/request-meta";
 import { parseRawToken } from "@/server/forms/schema";
 import {
   fillableFields,
-  hasOrganizationSignatureFields,
   parseFieldsSchemaSnapshot,
 } from "@/server/forms/snapshot";
 import {
@@ -289,11 +288,7 @@ function validateSignInput(input: SignPublicFormInput): void {
 
 async function loadOrganizationSignaturePng(
   resolved: ResolvedSigningContext,
-): Promise<Uint8Array | null> {
-  if (!hasOrganizationSignatureFields(resolved.snapshot)) {
-    return null;
-  }
-
+): Promise<Uint8Array> {
   const blobKey = resolved.organizationSignaturePngBlobKey;
   const sha256 = resolved.organizationSignaturePngSha256;
 

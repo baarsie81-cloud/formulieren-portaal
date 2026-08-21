@@ -105,6 +105,7 @@ describe("buildFinalPdfBytes", () => {
       ],
       values: { client_name: "Ada Berg" },
       signaturePngBytes: CLIENT_PNG_BYTES,
+      organizationSignaturePngBytes: ORGANIZATION_PNG_BYTES,
       audit: AUDIT,
     });
 
@@ -123,6 +124,7 @@ describe("buildFinalPdfBytes", () => {
       snapshot: [],
       values: {},
       signaturePngBytes: CLIENT_PNG_BYTES,
+      organizationSignaturePngBytes: ORGANIZATION_PNG_BYTES,
       audit: AUDIT,
     });
 
@@ -155,6 +157,7 @@ describe("buildFinalPdfBytes", () => {
       ],
       values: { note: "Klaar" },
       signaturePngBytes: CLIENT_PNG_BYTES,
+      organizationSignaturePngBytes: ORGANIZATION_PNG_BYTES,
       audit: AUDIT,
     });
 
@@ -196,6 +199,7 @@ describe("buildFinalPdfBytes", () => {
       ],
       values: { note: "Klaar" },
       signaturePngBytes: CLIENT_PNG_BYTES,
+      organizationSignaturePngBytes: ORGANIZATION_PNG_BYTES,
       audit: AUDIT,
     });
 
@@ -224,41 +228,31 @@ describe("buildFinalPdfBytes", () => {
       ],
       values: {},
       signaturePngBytes: CLIENT_PNG_BYTES,
+      organizationSignaturePngBytes: ORGANIZATION_PNG_BYTES,
       audit: AUDIT,
     });
 
     const asText = Buffer.from(finalBytes).toString("latin1");
 
     expect(asText).toContain("/Width 1");
-    expect(asText).not.toContain("/Width 2");
+    expect(asText).toContain("/Width 2");
   });
 
-  it("places distinct organization and client PNGs on role-aware signature fields", async () => {
+  it("places client PNG on form signature fields and both PNGs on the audit page", async () => {
     const templateBytes = await createPdfWithSignatureFields([
-      { name: "OrgSig", rect: [50, 700, 250, 760] },
-      { name: "ClientSig", rect: [50, 100, 250, 160] },
+      { name: "Signature1", rect: [50, 100, 250, 160] },
     ]);
 
     const finalBytes = await buildFinalPdfBytes({
       templateBytes,
       snapshot: [
         snap({
-          pdfFieldName: "OrgSig",
-          valueKey: "org_signature",
+          pdfFieldName: "Signature1",
+          valueKey: "signature1",
           fieldType: "signature_area",
           isRequired: true,
           sortOrder: 0,
           pageNumber: 1,
-          signatureRole: "organization",
-        }),
-        snap({
-          pdfFieldName: "ClientSig",
-          valueKey: "client_signature",
-          fieldType: "signature_area",
-          isRequired: true,
-          sortOrder: 1,
-          pageNumber: 1,
-          signatureRole: "client",
         }),
       ],
       values: {},
@@ -286,7 +280,7 @@ describe("buildFinalPdfBytes", () => {
     ).toContain("Organisatieondertekenaar: Praktijk Berg (Directeur)");
   });
 
-  it("treats legacy signature fields without role as client-only", async () => {
+  it("stamps client PNG on legacy signature fields and still requires organization PNG on audit", async () => {
     const templateBytes = await createPdfWithSignatureFields([
       { name: "Signature1", rect: [50, 100, 250, 160] },
       { name: "Signature2", rect: [50, 200, 250, 260] },
@@ -321,35 +315,27 @@ describe("buildFinalPdfBytes", () => {
       snapshot: parsed!,
       values: {},
       signaturePngBytes: CLIENT_PNG_BYTES,
+      organizationSignaturePngBytes: ORGANIZATION_PNG_BYTES,
       audit: AUDIT,
     });
 
     const asText = Buffer.from(finalBytes).toString("latin1");
 
     expect(asText).toContain("/Width 1");
-    expect(asText).not.toContain("/Width 2");
+    expect(asText).toContain("/Width 2");
   });
 
-  it("fails clearly when organization signature fields exist without an organization PNG", async () => {
+  it("fails clearly when the organization signature PNG is missing", async () => {
     const pdf = await PDFDocument.create();
     pdf.addPage();
 
     await expect(
       buildFinalPdfBytes({
         templateBytes: await pdf.save(),
-        snapshot: [
-          snap({
-            pdfFieldName: "OrgSig",
-            valueKey: "org_signature",
-            fieldType: "signature_area",
-            isRequired: true,
-            sortOrder: 0,
-            pageNumber: 1,
-            signatureRole: "organization",
-          }),
-        ],
+        snapshot: [],
         values: {},
         signaturePngBytes: CLIENT_PNG_BYTES,
+        organizationSignaturePngBytes: new Uint8Array(),
         audit: AUDIT,
       }),
     ).rejects.toBeInstanceOf(ValidationError);

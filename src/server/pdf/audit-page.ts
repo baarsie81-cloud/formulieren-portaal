@@ -57,8 +57,8 @@ export function collectAuditPageLines(audit: FinalPdfAuditInfo): string[] {
 export async function appendAuditPage(
   pdf: PDFDocument,
   audit: FinalPdfAuditInfo,
-  signaturePng: PDFImage | null,
-  drawSignatureOnAuditPage: boolean,
+  clientSignaturePng: PDFImage | null,
+  organizationSignaturePng: PDFImage | null,
 ): Promise<void> {
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
@@ -95,25 +95,60 @@ export async function appendAuditPage(
   y -= 4;
   y = drawWrapped(page, regular, 10, MARGIN_X, y, CLOSING_STATEMENT, CONTENT_WIDTH);
 
-  if (drawSignatureOnAuditPage && signaturePng) {
-    y -= 10;
-    page.drawText("Handtekening", {
-      x: MARGIN_X,
-      y: y - 12,
-      size: 11,
-      font: bold,
-    });
-    y -= 24;
+  const signatureWidth = 220;
+  const signatureHeight = 70;
 
-    const signatureWidth = 220;
-    const signatureHeight = 70;
-    page.drawImage(signaturePng, {
-      x: MARGIN_X,
-      y: y - signatureHeight,
-      width: signatureWidth,
-      height: signatureHeight,
-    });
+  if (clientSignaturePng) {
+    y = drawSignatureBlock(
+      page,
+      bold,
+      y,
+      "Handtekening cliënt",
+      clientSignaturePng,
+      signatureWidth,
+      signatureHeight,
+    );
   }
+
+  if (organizationSignaturePng) {
+    y = drawSignatureBlock(
+      page,
+      bold,
+      y,
+      "Handtekening organisatie",
+      organizationSignaturePng,
+      signatureWidth,
+      signatureHeight,
+    );
+  }
+}
+
+function drawSignatureBlock(
+  page: PDFPage,
+  bold: PDFFont,
+  y: number,
+  label: string,
+  signaturePng: PDFImage,
+  signatureWidth: number,
+  signatureHeight: number,
+): number {
+  y -= 10;
+  page.drawText(label, {
+    x: MARGIN_X,
+    y: y - 12,
+    size: 11,
+    font: bold,
+  });
+  y -= 24;
+
+  page.drawImage(signaturePng, {
+    x: MARGIN_X,
+    y: y - signatureHeight,
+    width: signatureWidth,
+    height: signatureHeight,
+  });
+
+  return y - signatureHeight - 4;
 }
 
 function drawField(

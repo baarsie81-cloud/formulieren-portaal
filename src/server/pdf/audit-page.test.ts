@@ -50,7 +50,7 @@ describe("appendAuditPage", () => {
     const pdf = await PDFDocument.create();
     const png = await pdf.embedPng(PNG_BYTES);
 
-    await appendAuditPage(pdf, AUDIT, png, true);
+    await appendAuditPage(pdf, AUDIT, png, png);
 
     const bytes = await pdf.save();
     const loaded = await PDFDocument.load(bytes);
@@ -58,5 +58,24 @@ describe("appendAuditPage", () => {
     expect(loaded.getPageCount()).toBe(1);
     expect(bytes.byteLength).toBeGreaterThan(500);
     expect(Buffer.from(bytes).toString("latin1")).toContain("/Subtype /Image");
+  });
+});
+
+describe("appendAuditPage dual signatures", () => {
+  it("embeds both client and organization signature images", async () => {
+    const pdf = await PDFDocument.create();
+    const clientPng = await pdf.embedPng(PNG_BYTES);
+    const organizationPng = await pdf.embedPng(PNG_BYTES);
+
+    await appendAuditPage(pdf, AUDIT, clientPng, organizationPng);
+
+    const bytes = await pdf.save();
+    const loaded = await PDFDocument.load(bytes);
+    const latin1 = Buffer.from(bytes).toString("latin1");
+
+    expect(loaded.getPageCount()).toBe(1);
+    expect(latin1).toContain("/Subtype /Image");
+    // Two embedded images (client + organization)
+    expect(latin1.split("/Subtype /Image").length - 1).toBeGreaterThanOrEqual(2);
   });
 });
