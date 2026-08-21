@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { DOCUMENT_FIELD_TYPES, type DocumentFieldType } from "@/lib/constants";
+import {
+  DOCUMENT_FIELD_TYPES,
+  SIGNATURE_ROLES,
+  type DocumentFieldType,
+  type SignatureRole,
+} from "@/lib/constants";
 
 const nullableCoordSchema = z
   .number()
@@ -7,6 +12,12 @@ const nullableCoordSchema = z
   .nullable()
   .optional()
   .transform((value) => value ?? null);
+
+const signatureRoleSchema = z
+  .enum(SIGNATURE_ROLES)
+  .nullable()
+  .optional()
+  .transform((value): SignatureRole => value ?? "client");
 
 export type FieldSchemaSnapshot = {
   pdfFieldName: string;
@@ -21,6 +32,7 @@ export type FieldSchemaSnapshot = {
   height: number | null;
   pageWidth: number | null;
   pageHeight: number | null;
+  signatureRole: SignatureRole;
 };
 
 export const fieldSchemaSnapshotSchema = z.object({
@@ -36,6 +48,7 @@ export const fieldSchemaSnapshotSchema = z.object({
   height: nullableCoordSchema,
   pageWidth: nullableCoordSchema,
   pageHeight: nullableCoordSchema,
+  signatureRole: signatureRoleSchema,
 });
 
 export type SnapshotFieldSource = {
@@ -51,6 +64,7 @@ export type SnapshotFieldSource = {
   height?: number | null;
   pageWidth?: number | null;
   pageHeight?: number | null;
+  signatureRole?: SignatureRole | null;
 };
 
 export function toFieldsSchemaSnapshot(
@@ -69,6 +83,7 @@ export function toFieldsSchemaSnapshot(
     height: field.height ?? null,
     pageWidth: field.pageWidth ?? null,
     pageHeight: field.pageHeight ?? null,
+    signatureRole: resolveSignatureRole(field.signatureRole),
   }));
 }
 
@@ -90,4 +105,18 @@ export function fillableFields(snapshot: readonly FieldSchemaSnapshot[]): FieldS
 
 export function signatureFields(snapshot: readonly FieldSchemaSnapshot[]): FieldSchemaSnapshot[] {
   return snapshot.filter((field) => field.fieldType === "signature_area");
+}
+
+export function resolveSignatureRole(
+  role: SignatureRole | null | undefined,
+): SignatureRole {
+  return role === "organization" ? "organization" : "client";
+}
+
+export function hasOrganizationSignatureFields(
+  snapshot: readonly FieldSchemaSnapshot[],
+): boolean {
+  return signatureFields(snapshot).some(
+    (field) => resolveSignatureRole(field.signatureRole) === "organization",
+  );
 }

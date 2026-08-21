@@ -16,6 +16,11 @@ export const documentFieldTypeEnum = pgEnum("document_field_type", [
   "signature_area",
 ]);
 
+export const signatureRoleEnum = pgEnum("signature_role", [
+  "client",
+  "organization",
+]);
+
 export const formRequestStatusEnum = pgEnum("form_request_status", [
   "sent",
   "opened",

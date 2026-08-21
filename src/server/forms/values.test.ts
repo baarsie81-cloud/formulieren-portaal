@@ -16,6 +16,7 @@ const snapshot: FieldSchemaSnapshot[] = [
     height: null,
     pageWidth: null,
     pageHeight: null,
+    signatureRole: "client",
   },
   {
     pdfFieldName: "Toelichting",
@@ -30,6 +31,7 @@ const snapshot: FieldSchemaSnapshot[] = [
     height: null,
     pageWidth: null,
     pageHeight: null,
+    signatureRole: "client",
   },
   {
     pdfFieldName: "Geboortedatum",
@@ -44,6 +46,7 @@ const snapshot: FieldSchemaSnapshot[] = [
     height: null,
     pageWidth: null,
     pageHeight: null,
+    signatureRole: "client",
   },
   {
     pdfFieldName: "Akkoord",
@@ -58,6 +61,7 @@ const snapshot: FieldSchemaSnapshot[] = [
     height: null,
     pageWidth: null,
     pageHeight: null,
+    signatureRole: "client",
   },
   {
     pdfFieldName: "Signature1",
@@ -72,6 +76,7 @@ const snapshot: FieldSchemaSnapshot[] = [
     height: null,
     pageWidth: null,
     pageHeight: null,
+    signatureRole: "client",
   },
 ];
 

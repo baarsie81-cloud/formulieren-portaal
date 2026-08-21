@@ -18,6 +18,7 @@ import {
   documentFieldTypeEnum,
   formDocumentStatusEnum,
   formRequestStatusEnum,
+  signatureRoleEnum,
   templateStatusEnum,
 } from "./enums";
 
@@ -62,6 +63,7 @@ export const documentFields = pgTable(
     pdfFieldName: text("pdf_field_name").notNull(),
     valueKey: text("value_key").notNull(),
     fieldType: documentFieldTypeEnum("field_type").notNull(),
+    signatureRole: signatureRoleEnum("signature_role").notNull().default("client"),
     pageNumber: integer("page_number").notNull().default(1),
     x: doublePrecision("x"),
     y: doublePrecision("y"),

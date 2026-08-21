@@ -4,6 +4,7 @@ import {
   assertSignatureBlobKey,
   assertTemplateBlobKey,
   finalPdfBlobKey,
+  organizationSignaturePngBlobKey,
   signaturePngBlobKey,
   templatePdfBlobKey,
 } from "@/server/storage/paths";
@@ -61,6 +62,14 @@ describe("signaturePngBlobKey", () => {
     const key = signaturePngBlobKey(ORGANIZATION_ID, DOCUMENT_ID, SHA256);
 
     expect(key).toBe(`${ORGANIZATION_ID}/signatures/${DOCUMENT_ID}/${SHA256}.png`);
+  });
+});
+
+describe("organizationSignaturePngBlobKey", () => {
+  it("stores the organization signature under the tenant", () => {
+    const key = organizationSignaturePngBlobKey(ORGANIZATION_ID, SHA256);
+
+    expect(key).toBe(`${ORGANIZATION_ID}/organization-signature/${SHA256}.png`);
   });
 });
 

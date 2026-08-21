@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DOCUMENT_FIELD_TYPES } from "@/lib/constants";
+import { DOCUMENT_FIELD_TYPES, SIGNATURE_ROLES } from "@/lib/constants";
 
 const optionalNullableText = (max: number) =>
   z
@@ -17,19 +17,28 @@ export const templateMetadataSchema = z.object({
 
 export type TemplateMetadataInput = z.infer<typeof templateMetadataSchema>;
 
-export const fieldMappingSchema = z.object({
-  id: z.uuid(),
-  pdfFieldName: z.string().trim().min(1).max(300),
-  valueKey: z
-    .string()
-    .trim()
-    .min(1)
-    .max(80)
-    .regex(/^[a-z][a-z0-9_]*$/),
-  fieldType: z.enum(DOCUMENT_FIELD_TYPES),
-  isRequired: z.boolean(),
-  sortOrder: z.number().int().min(0).max(10_000),
-});
+export const fieldMappingSchema = z
+  .object({
+    id: z.uuid(),
+    pdfFieldName: z.string().trim().min(1).max(300),
+    valueKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(80)
+      .regex(/^[a-z][a-z0-9_]*$/),
+    fieldType: z.enum(DOCUMENT_FIELD_TYPES),
+    isRequired: z.boolean(),
+    sortOrder: z.number().int().min(0).max(10_000),
+    signatureRole: z.enum(SIGNATURE_ROLES).optional().default("client"),
+  })
+  .transform((field) => ({
+    ...field,
+    signatureRole:
+      field.fieldType === "signature_area" && field.signatureRole === "organization"
+        ? ("organization" as const)
+        : ("client" as const),
+  }));
 
 export type FieldMappingInput = z.infer<typeof fieldMappingSchema>;
 
@@ -71,6 +80,7 @@ export function readFieldMappings(formData: FormData): unknown[] {
     fieldType: readAllString(formData, "fieldType", index),
     sortOrder: Number(readAllString(formData, "sortOrder", index)),
     isRequired: typeof id === "string" && formData.get(`required-${id}`) === "on",
+    signatureRole: readAllString(formData, "signatureRole", index) || "client",
   }));
 }
 
@@ -134,6 +144,10 @@ function fieldValidationMessage(error: z.ZodError): string {
 
   if (field === "sortOrder") {
     return "Volgorde moet een geheel getal zijn.";
+  }
+
+  if (field === "signatureRole") {
+    return "Kies een geldige handtekeningrol.";
   }
 
   return "Controleer de veldkoppeling.";

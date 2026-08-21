@@ -5,7 +5,11 @@ import {
 } from "pdf-lib";
 import { ValidationError } from "@/server/errors";
 import { fillAcroForm, type FieldValueMap } from "@/server/pdf/fill";
-import type { FieldSchemaSnapshot } from "@/server/forms/snapshot";
+import {
+  hasOrganizationSignatureFields,
+  resolveSignatureRole,
+  type FieldSchemaSnapshot,
+} from "@/server/forms/snapshot";
 import {
   appendAuditPage,
   type FinalPdfAuditInfo,
@@ -18,16 +22,29 @@ export async function buildFinalPdfBytes(input: {
   snapshot: readonly FieldSchemaSnapshot[];
   values: FieldValueMap;
   signaturePngBytes: Uint8Array;
+  organizationSignaturePngBytes?: Uint8Array | null;
   audit: FinalPdfAuditInfo;
 }): Promise<Uint8Array> {
+  const needsOrganizationSignature = hasOrganizationSignatureFields(input.snapshot);
+
+  if (needsOrganizationSignature && !input.organizationSignaturePngBytes?.length) {
+    throw new ValidationError(
+      "Organisatiehandtekening ontbreekt. Neem contact op met de praktijk.",
+    );
+  }
+
   const filled = await fillAcroForm(input.templateBytes, input.snapshot, input.values);
   const pdf = await PDFDocument.load(filled, {
     ignoreEncryption: false,
     updateMetadata: false,
   });
 
-  const signaturePng = await pdf.embedPng(input.signaturePngBytes);
-  let signatureDrawnOnForm = false;
+  const clientSignaturePng = await pdf.embedPng(input.signaturePngBytes);
+  const organizationSignaturePng =
+    needsOrganizationSignature && input.organizationSignaturePngBytes?.length
+      ? await pdf.embedPng(input.organizationSignaturePngBytes)
+      : null;
+  let clientSignatureDrawnOnForm = false;
 
   const form = pdf.getForm();
   const signatureFields = input.snapshot.filter(
@@ -35,9 +52,19 @@ export async function buildFinalPdfBytes(input: {
   );
 
   for (const field of signatureFields) {
+    const role = resolveSignatureRole(field.signatureRole);
+    const png =
+      role === "organization" ? organizationSignaturePng : clientSignaturePng;
+
+    if (!png) {
+      continue;
+    }
+
     try {
-      const drawn = drawSignatureOnField(pdf, form.getField(field.pdfFieldName), signaturePng);
-      signatureDrawnOnForm ||= drawn;
+      const drawn = drawSignatureOnField(pdf, form.getField(field.pdfFieldName), png);
+      if (role === "client") {
+        clientSignatureDrawnOnForm ||= drawn;
+      }
     } catch {
       // Snapshot may reference a signature widget that is absent from the PDF bytes.
     }
@@ -52,8 +79,8 @@ export async function buildFinalPdfBytes(input: {
   await appendAuditPage(
     pdf,
     input.audit,
-    signaturePng,
-    !signatureDrawnOnForm,
+    clientSignaturePng,
+    !clientSignatureDrawnOnForm,
   );
 
   return pdf.save();

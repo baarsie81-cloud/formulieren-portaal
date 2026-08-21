@@ -28,6 +28,7 @@ function field(
     height: null,
     pageWidth: null,
     pageHeight: null,
+    signatureRole: "client",
     ...partial,
   };
 }

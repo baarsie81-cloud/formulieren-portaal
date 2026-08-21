@@ -66,6 +66,29 @@ export function assertSignatureBlobKey(
   }
 }
 
+/** Content-addressed private organization signature image path. */
+export function organizationSignaturePngBlobKey(
+  organizationId: string,
+  sha256: string,
+): string {
+  assertUuid(organizationId, "organization id");
+  assertSha256(sha256);
+
+  return `${organizationId}/organization-signature/${sha256}.png`;
+}
+
+export function assertOrganizationSignatureBlobKey(
+  blobKey: string,
+  organizationId: string,
+  sha256: string,
+): void {
+  const expected = organizationSignaturePngBlobKey(organizationId, sha256);
+
+  if (blobKey !== expected) {
+    throw new Error("Blob key does not match organization signature identity");
+  }
+}
+
 /** Content-addressed private final audit PDF path. */
 export function finalPdfBlobKey(
   organizationId: string,

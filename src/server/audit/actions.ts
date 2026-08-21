@@ -16,6 +16,7 @@ export const AUDIT_ACTIONS = {
   SIGNATURE_CREATED: "signature.created",
   ACCEPTANCE_RECORDED: "acceptance.recorded",
   FORM_DOCUMENT_FINALIZED: "form_document.finalized",
+  ORGANIZATION_SIGNATURE_UPDATED: "organization.signature_updated",
 } as const;
 
 export const AUDIT_ENTITY_TYPES = {
@@ -26,4 +27,5 @@ export const AUDIT_ENTITY_TYPES = {
   FORM_SESSION: "form_session",
   SIGNATURE: "signature",
   ACCEPTANCE: "acceptance",
+  ORGANIZATION: "organization",
 } as const;

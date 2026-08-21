@@ -57,13 +57,25 @@ export async function putPrivatePng(
 }
 
 export async function getPrivatePdfBytes(pathname: string): Promise<Uint8Array> {
+  return getPrivateBytes(pathname, "Template file not found", "Failed to read PDF");
+}
+
+export async function getPrivatePngBytes(pathname: string): Promise<Uint8Array> {
+  return getPrivateBytes(pathname, "Signature file not found", "Failed to read signature");
+}
+
+async function getPrivateBytes(
+  pathname: string,
+  notFoundMessage: string,
+  failureMessage: string,
+): Promise<Uint8Array> {
   requireBlobConfigured();
 
   try {
     const result = await get(pathname, { ...PRIVATE, useCache: false });
 
     if (!result || result.statusCode !== 200 || !result.stream) {
-      throw new NotFoundError("Template file not found");
+      throw new NotFoundError(notFoundMessage);
     }
 
     return new Uint8Array(await new Response(result.stream).arrayBuffer());
@@ -72,7 +84,7 @@ export async function getPrivatePdfBytes(pathname: string): Promise<Uint8Array> 
       throw error;
     }
 
-    throw toStorageError(error, "Failed to read PDF");
+    throw toStorageError(error, failureMessage);
   }
 }
 

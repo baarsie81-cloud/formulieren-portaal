@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   fillableFields,
+  hasOrganizationSignatureFields,
   parseFieldsSchemaSnapshot,
+  resolveSignatureRole,
   toFieldsSchemaSnapshot,
 } from "@/server/forms/snapshot";
 
@@ -38,6 +40,7 @@ const geometryFields = [
     height: 20,
     pageWidth: 595.28,
     pageHeight: 841.89,
+    signatureRole: "client" as const,
   },
   {
     pdfFieldName: "notes",
@@ -52,6 +55,7 @@ const geometryFields = [
     height: 80,
     pageWidth: 612,
     pageHeight: 792,
+    signatureRole: "client" as const,
   },
   {
     pdfFieldName: "Signature1",
@@ -66,6 +70,7 @@ const geometryFields = [
     height: 60,
     pageWidth: 612,
     pageHeight: 792,
+    signatureRole: "client" as const,
   },
 ];
 
@@ -86,6 +91,7 @@ describe("fields schema snapshot", () => {
       pageWidth: 595.28,
       pageHeight: 841.89,
       pageNumber: 1,
+      signatureRole: "client",
     });
     expect(snapshot[1]).toMatchObject({
       pageNumber: 2,
@@ -94,7 +100,7 @@ describe("fields schema snapshot", () => {
     });
   });
 
-  it("normalizes missing geometry to null when freezing legacy template rows", () => {
+  it("normalizes missing geometry and signature role for legacy template rows", () => {
     const snapshot = toFieldsSchemaSnapshot(legacyFields);
 
     expect(snapshot[0]).toMatchObject({
@@ -106,10 +112,12 @@ describe("fields schema snapshot", () => {
       height: null,
       pageWidth: null,
       pageHeight: null,
+      signatureRole: "client",
     });
+    expect(snapshot[1]?.signatureRole).toBe("client");
   });
 
-  it("parses a legacy snapshot without geometry fields", () => {
+  it("parses a legacy snapshot without geometry or signatureRole as client", () => {
     const parsed = parseFieldsSchemaSnapshot(legacyFields);
 
     expect(parsed?.map((field) => field.pdfFieldName)).toEqual([
@@ -124,7 +132,9 @@ describe("fields schema snapshot", () => {
       pageWidth: null,
       pageHeight: null,
       pageNumber: 1,
+      signatureRole: "client",
     });
+    expect(parsed?.[1]?.signatureRole).toBe("client");
   });
 
   it("parses a snapshot that includes multi-page geometry", () => {
@@ -138,7 +148,48 @@ describe("fields schema snapshot", () => {
     expect(parsed?.[2]?.fieldType).toBe("signature_area");
   });
 
+  it("freezes and parses organization signature roles", () => {
+    const snapshot = toFieldsSchemaSnapshot([
+      {
+        pdfFieldName: "OrgSig",
+        valueKey: "org_signature",
+        fieldType: "signature_area",
+        isRequired: true,
+        sortOrder: 1,
+        pageNumber: 1,
+        signatureRole: "organization",
+      },
+      {
+        pdfFieldName: "ClientSig",
+        valueKey: "client_signature",
+        fieldType: "signature_area",
+        isRequired: true,
+        sortOrder: 2,
+        pageNumber: 1,
+        signatureRole: "client",
+      },
+    ]);
+
+    expect(snapshot.map((field) => field.signatureRole)).toEqual([
+      "organization",
+      "client",
+    ]);
+    expect(hasOrganizationSignatureFields(snapshot)).toBe(true);
+
+    const parsed = parseFieldsSchemaSnapshot(snapshot);
+    expect(parsed?.[0]?.signatureRole).toBe("organization");
+  });
+
   it("rejects a tampered stored snapshot", () => {
     expect(parseFieldsSchemaSnapshot([{ valueKey: "x" }])).toBeNull();
+  });
+});
+
+describe("resolveSignatureRole", () => {
+  it("treats null and undefined as client", () => {
+    expect(resolveSignatureRole(null)).toBe("client");
+    expect(resolveSignatureRole(undefined)).toBe("client");
+    expect(resolveSignatureRole("client")).toBe("client");
+    expect(resolveSignatureRole("organization")).toBe("organization");
   });
 });

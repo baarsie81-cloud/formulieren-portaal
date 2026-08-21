@@ -23,6 +23,7 @@ import type { RequestMeta } from "@/server/forms/request-meta";
 import { parseRawToken } from "@/server/forms/schema";
 import {
   fillableFields,
+  hasOrganizationSignatureFields,
   parseFieldsSchemaSnapshot,
 } from "@/server/forms/snapshot";
 import {
@@ -38,10 +39,12 @@ import { parseSignaturePngDataUrl } from "@/server/pdf/signature-image";
 import {
   assertPdfSha256,
   deletePrivatePdf,
+  getPrivatePngBytes,
   putPrivatePdf,
   putPrivatePng,
 } from "@/server/storage/blob";
 import {
+  assertOrganizationSignatureBlobKey,
   finalPdfBlobKey,
   signaturePngBlobKey,
 } from "@/server/storage/paths";
@@ -61,6 +64,10 @@ type ResolvedSigningContext = {
   snapshot: NonNullable<ReturnType<typeof parseFieldsSchemaSnapshot>>;
   organizationName: string;
   documentName: string;
+  organizationSignaturePngBlobKey: string | null;
+  organizationSignaturePngSha256: string | null;
+  organizationSignerName: string | null;
+  organizationSignerTitle: string | null;
 };
 
 export async function signAndFinalizePublicForm(
@@ -86,6 +93,8 @@ export async function signAndFinalizePublicForm(
     templateSha256: resolved.document.templateSha256,
   });
 
+  const organizationSignaturePngBytes = await loadOrganizationSignaturePng(resolved);
+
   const now = new Date();
 
   const finalPdfBytes = await buildFinalPdfBytes({
@@ -93,6 +102,7 @@ export async function signAndFinalizePublicForm(
     snapshot: resolved.snapshot,
     values: asFieldValueMap(resolved.document.fieldValues),
     signaturePngBytes,
+    organizationSignaturePngBytes,
     audit: {
       organizationName: resolved.organizationName,
       documentName: resolved.documentName,
@@ -102,6 +112,8 @@ export async function signAndFinalizePublicForm(
       formDocumentId: resolved.document.id,
       formRequestId: resolved.request.id,
       templateSha256: resolved.document.templateSha256,
+      organizationSignerName: resolved.organizationSignerName ?? undefined,
+      organizationSignerTitle: resolved.organizationSignerTitle ?? undefined,
     },
   });
 
@@ -275,6 +287,34 @@ function validateSignInput(input: SignPublicFormInput): void {
   }
 }
 
+async function loadOrganizationSignaturePng(
+  resolved: ResolvedSigningContext,
+): Promise<Uint8Array | null> {
+  if (!hasOrganizationSignatureFields(resolved.snapshot)) {
+    return null;
+  }
+
+  const blobKey = resolved.organizationSignaturePngBlobKey;
+  const sha256 = resolved.organizationSignaturePngSha256;
+
+  if (!blobKey || !sha256) {
+    throw new ValidationError(
+      "Organisatiehandtekening ontbreekt. Neem contact op met de praktijk.",
+    );
+  }
+
+  assertOrganizationSignatureBlobKey(
+    blobKey,
+    resolved.document.organizationId,
+    sha256,
+  );
+
+  const bytes = await getPrivatePngBytes(blobKey);
+  assertPdfSha256(bytes, sha256);
+
+  return bytes;
+}
+
 async function resolveSigningContext(rawToken: string): Promise<ResolvedSigningContext> {
   const tokenValue = parseRawToken(rawToken);
 
@@ -298,6 +338,10 @@ async function resolveSigningContext(rawToken: string): Promise<ResolvedSigningC
       request: formRequests,
       document: formDocuments,
       organizationName: organizations.name,
+      organizationSignaturePngBlobKey: organizations.signaturePngBlobKey,
+      organizationSignaturePngSha256: organizations.signaturePngSha256,
+      organizationSignerName: organizations.signatureSignerName,
+      organizationSignerTitle: organizations.signatureSignerTitle,
       documentName: documentTemplates.name,
     })
     .from(formRequests)
@@ -387,5 +431,9 @@ async function resolveSigningContext(rawToken: string): Promise<ResolvedSigningC
     snapshot,
     organizationName: row.organizationName,
     documentName: row.documentName,
+    organizationSignaturePngBlobKey: row.organizationSignaturePngBlobKey,
+    organizationSignaturePngSha256: row.organizationSignaturePngSha256,
+    organizationSignerName: row.organizationSignerName,
+    organizationSignerTitle: row.organizationSignerTitle,
   };
 }

@@ -238,7 +238,8 @@ export async function updateTemplateFieldMappings(
       (current.valueKey !== mapping.valueKey ||
         current.fieldType !== mapping.fieldType ||
         current.isRequired !== mapping.isRequired ||
-        current.sortOrder !== mapping.sortOrder)
+        current.sortOrder !== mapping.sortOrder ||
+        current.signatureRole !== mapping.signatureRole)
     );
   }).length;
 
@@ -255,6 +256,7 @@ export async function updateTemplateFieldMappings(
           fieldType: mapping.fieldType,
           isRequired: mapping.isRequired,
           sortOrder: mapping.sortOrder,
+          signatureRole: mapping.signatureRole,
         })
         .where(
           and(

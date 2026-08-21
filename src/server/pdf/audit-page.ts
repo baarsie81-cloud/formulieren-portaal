@@ -10,6 +10,8 @@ export type FinalPdfAuditInfo = {
   formDocumentId: string;
   formRequestId: string;
   templateSha256: string;
+  organizationSignerName?: string;
+  organizationSignerTitle?: string;
 };
 
 const PAGE_WIDTH = 595;
@@ -23,19 +25,33 @@ const CLOSING_STATEMENT =
 
 /** Plain-text lines rendered on the audit page (used for tests and PDF generation). */
 export function collectAuditPageLines(audit: FinalPdfAuditInfo): string[] {
-  return [
+  const lines = [
     "Elektronisch ondertekend document",
     `Organisatie: ${audit.organizationName}`,
     `Document: ${audit.documentName}`,
     `Ondertekenaar: ${audit.signerName}`,
     `Datum/tijd ondertekening: ${formatAuditSignedAt(audit.signedAt)}`,
+  ];
+
+  if (audit.organizationSignerName) {
+    const title = audit.organizationSignerTitle?.trim();
+    lines.push(
+      title
+        ? `Organisatieondertekenaar: ${audit.organizationSignerName} (${title})`
+        : `Organisatieondertekenaar: ${audit.organizationSignerName}`,
+    );
+  }
+
+  lines.push(
     "Akkoordverklaring:",
     audit.declarationText,
     `form_document_id: ${audit.formDocumentId}`,
     `form_request_id: ${audit.formRequestId}`,
     `template_sha256: ${audit.templateSha256}`,
     CLOSING_STATEMENT,
-  ];
+  );
+
+  return lines;
 }
 
 export async function appendAuditPage(
@@ -57,6 +73,18 @@ export async function appendAuditPage(
   y = drawField(page, regular, bold, y, "Document", audit.documentName);
   y = drawField(page, regular, bold, y, "Ondertekenaar", audit.signerName);
   y = drawField(page, regular, bold, y, "Datum/tijd ondertekening", formatAuditSignedAt(audit.signedAt));
+
+  if (audit.organizationSignerName) {
+    const title = audit.organizationSignerTitle?.trim();
+    y = drawField(
+      page,
+      regular,
+      bold,
+      y,
+      "Organisatieondertekenaar",
+      title ? `${audit.organizationSignerName} (${title})` : audit.organizationSignerName,
+    );
+  }
 
   y = drawWrappedLabel(page, regular, bold, y, "Akkoordverklaring", audit.declarationText);
 

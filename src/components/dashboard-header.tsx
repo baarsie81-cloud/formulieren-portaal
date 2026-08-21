@@ -25,6 +25,9 @@ export function DashboardHeader() {
             <Link href="/dashboard/requests" className="hover:text-neutral-950">
               Verzoeken
             </Link>
+            <Link href="/dashboard/praktijk" className="hover:text-neutral-950">
+              Praktijk
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-3">

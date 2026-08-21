@@ -25,6 +25,15 @@ export const DOCUMENT_FIELD_TYPE_LABELS: Record<DocumentFieldType, string> = {
   signature_area: "Handtekening",
 };
 
+export const SIGNATURE_ROLES = ["client", "organization"] as const;
+
+export type SignatureRole = (typeof SIGNATURE_ROLES)[number];
+
+export const SIGNATURE_ROLE_LABELS: Record<SignatureRole, string> = {
+  client: "Cliënt",
+  organization: "Organisatie",
+};
+
 export const FORM_REQUEST_TTL_DAYS = 14;
 
 export const FORM_REQUEST_STATUSES = [

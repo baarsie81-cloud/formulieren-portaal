@@ -31,6 +31,35 @@ export function parseSignaturePngDataUrl(value: string): Uint8Array {
   return bytes;
 }
 
+/** Reads and validates a staff-uploaded organization signature PNG. */
+export async function readSignaturePngBytes(file: File): Promise<Uint8Array> {
+  if (file.size <= 0) {
+    throw new ValidationError("Upload a PNG file");
+  }
+
+  if (file.size > MAX_SIGNATURE_PNG_BYTES) {
+    throw new ValidationError("Signature PNG is too large");
+  }
+
+  const type = file.type.trim().toLowerCase();
+
+  if (type && type !== "image/png") {
+    throw new ValidationError("File must be a PNG");
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  if (!hasPngHeader(bytes)) {
+    throw new ValidationError("Handtekening moet een PNG-afbeelding zijn");
+  }
+
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_SIGNATURE_PNG_BYTES) {
+    throw new ValidationError("Signature PNG is too large");
+  }
+
+  return bytes;
+}
+
 function hasPngHeader(bytes: Uint8Array): boolean {
   if (bytes.byteLength < PNG_SIGNATURE.byteLength) {
     return false;
