@@ -5,4 +5,5 @@ export * from "./sessions";
 export * from "./signing";
 export * from "./reminders";
 export * from "./audit";
+export * from "./email-templates";
 export * from "./relations";
