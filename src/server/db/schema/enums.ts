@@ -51,3 +51,23 @@ export const emailEventTypeEnum = pgEnum("email_event_type", [
   "complained",
   "opened",
 ]);
+
+export const documentCategoryEnum = pgEnum("document_category", [
+  "intake",
+  "contract",
+]);
+
+export const organizationEmailTemplateKindEnum = pgEnum(
+  "organization_email_template_kind",
+  [
+    "intake_invitation",
+    "contract_invitation",
+    "intake_confirmation",
+    "contract_confirmation",
+  ],
+);
+
+export const emailKindEnum = pgEnum("email_kind", [
+  "invitation",
+  "confirmation",
+]);

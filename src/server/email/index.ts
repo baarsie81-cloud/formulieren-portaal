@@ -5,10 +5,24 @@ export type { SendEmailInput, SendEmailResult } from "@/server/email/schema";
 export type { LogEmailSentEventInput } from "@/server/email/events";
 export { logEmailSentEvent } from "@/server/email/events";
 export {
-  buildFormRequestInvitationEmail,
-  sendFormRequestInvitation,
-} from "@/server/email/invitation";
+  buildConfirmationTemplateContext,
+  buildInvitationTemplateContext,
+  confirmationTemplateKindForCategory,
+  getDefaultEmailTemplate,
+  invitationTemplateKindForCategory,
+  renderEmailTemplate,
+  renderedEmailFromSnapshot,
+  resolveOrganizationEmailTemplate,
+  snapshotTextToHtml,
+  substituteEmailTemplate,
+} from "@/server/email/templates";
+export type {
+  EmailTemplateContext,
+  RenderedEmail,
+  ResolvedEmailTemplate,
+} from "@/server/email/templates";
 export type { FormRequestInvitationInput } from "@/server/email/invitation";
+export { sendFormRequestInvitation } from "@/server/email/invitation";
 export {
   buildFormCompletionClientEmail,
   buildFormCompletionStaffEmail,

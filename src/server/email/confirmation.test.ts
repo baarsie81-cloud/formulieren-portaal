@@ -24,25 +24,39 @@ const clientInput = {
   recipientEmail: "client@example.com",
   recipientName: "Ada Lovelace",
   formRequestId: "22222222-2222-4222-8222-222222222222",
+  documentCategory: "intake" as const,
+  clientConfirmationSentAt: null,
+  confirmationSubjectSnapshot: "Bevestiging ondertekening — Praktijk De Linde",
+  confirmationBodySnapshot: "Beste Ada Lovelace, bedankt.",
 };
 
+function createConfirmationDb() {
+  return {
+    insert: vi.fn(),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue(undefined),
+      })),
+    })),
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn().mockResolvedValue([{ email: "staff@praktijk.nl" }]),
+        })),
+      })),
+    })),
+  } as unknown as Pick<Database, "insert" | "update" | "select">;
+}
+
 describe("buildFormCompletionClientEmail", () => {
-  it("builds Dutch client confirmation without form content", () => {
-    const content = buildFormCompletionClientEmail(clientInput);
+  it("builds client confirmation from stored snapshots", () => {
+    const content = buildFormCompletionClientEmail({
+      confirmationSubjectSnapshot: clientInput.confirmationSubjectSnapshot,
+      confirmationBodySnapshot: clientInput.confirmationBodySnapshot,
+    });
 
     expect(content.subject).toBe("Bevestiging ondertekening — Praktijk De Linde");
-    expect(content.text).toContain("succesvol is ontvangen en ondertekend");
-    expect(content.text).toContain("Praktijk De Linde");
     expect(content.text).toContain("Ada Lovelace");
-  });
-
-  it("does not include sensitive form data", () => {
-    const content = buildFormCompletionClientEmail(clientInput);
-    const combined = `${content.subject}\n${content.text}\n${content.html}`;
-
-    expect(combined).not.toMatch(/diagnose|medic|bsn|field_values|finalPdf/i);
-    expect(combined).not.toContain(".pdf");
-    expect(combined).not.toContain("valueKey");
   });
 });
 
@@ -61,26 +75,10 @@ describe("buildFormCompletionStaffEmail", () => {
     expect(content.text).toContain("Ada Lovelace");
     expect(content.text).toContain("https://formulierendesk.nl/dashboard/requests/");
   });
-
-  it("does not include form answers or PDF references", () => {
-    const content = buildFormCompletionStaffEmail({
-      organizationId: clientInput.organizationId,
-      organizationName: clientInput.organizationName,
-      staffEmail: "staff@praktijk.nl",
-      clientName: clientInput.recipientName,
-      formRequestId: clientInput.formRequestId,
-      dashboardRequestUrl: "https://formulierendesk.nl/dashboard/requests/22222222-2222-4222-8222-222222222222",
-    });
-    const combined = `${content.subject}\n${content.text}\n${content.html}`;
-
-    expect(combined).not.toContain("field_values");
-    expect(combined).not.toContain("finalPdfSha256");
-    expect(combined).not.toMatch(/checkbox|textarea|signature_area/i);
-  });
 });
 
 describe("sendFormCompletionClientEmail", () => {
-  const db = { insert: vi.fn() } as unknown as Pick<Database, "insert">;
+  const db = createConfirmationDb();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -88,17 +86,18 @@ describe("sendFormCompletionClientEmail", () => {
     sendEmail.mockResolvedValue({ messageId: "msg_client" });
   });
 
-  it("sends to the client recipient", async () => {
+  it("sends stored confirmation snapshots to the client", async () => {
     await sendFormCompletionClientEmail(db, clientInput);
 
-    expect(sendEmail).toHaveBeenCalledWith(db, {
-      organizationId: clientInput.organizationId,
-      to: "client@example.com",
-      subject: "Bevestiging ondertekening — Praktijk De Linde",
-      html: expect.stringContaining("ontvangen en ondertekend"),
-      text: expect.stringContaining("ontvangen en ondertekend"),
-      formRequestId: clientInput.formRequestId,
-    });
+    expect(sendEmail).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        to: "client@example.com",
+        subject: clientInput.confirmationSubjectSnapshot,
+        text: clientInput.confirmationBodySnapshot,
+        emailKind: "confirmation",
+      }),
+    );
   });
 });
 
@@ -132,16 +131,7 @@ describe("sendFormCompletionStaffEmail", () => {
 });
 
 describe("sendFormCompletionNotifications", () => {
-  const db = {
-    insert: vi.fn(),
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn().mockResolvedValue([{ email: "staff@praktijk.nl" }]),
-        })),
-      })),
-    })),
-  } as unknown as Pick<Database, "insert" | "select">;
+  const db = createConfirmationDb();
 
   beforeEach(() => {
     vi.clearAllMocks();

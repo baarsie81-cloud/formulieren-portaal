@@ -47,6 +47,7 @@ export async function sendEmail(
     recipientEmail: parsed.to,
     formRequestId: parsed.formRequestId,
     reminderDeliveryId: parsed.reminderDeliveryId,
+    emailKind: parsed.emailKind,
   });
 
   return delivery;

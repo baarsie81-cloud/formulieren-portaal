@@ -1,79 +1,74 @@
 import "server-only";
 
-import { FORM_REQUEST_TTL_DAYS } from "@/lib/constants";
-import { formatDateTime } from "@/lib/datetime";
+import { eq } from "drizzle-orm";
 import type { Database } from "@/server/db";
+import { formRequests } from "@/server/db/schema";
 import { sendEmail, isEmailConfigured } from "@/server/email/send";
 import type { SendEmailResult } from "@/server/email/schema";
+import { renderedEmailFromSnapshot } from "@/server/email/templates";
+import { EmailError } from "@/server/errors";
 
 export type FormRequestInvitationInput = {
   organizationId: string;
-  organizationName: string;
   recipientEmail: string;
-  recipientName: string;
   formRequestId: string;
-  formUrl: string;
-  expiresAt: Date;
 };
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-export function buildFormRequestInvitationEmail(input: FormRequestInvitationInput) {
-  const organizationName = input.organizationName.trim();
-  const recipientName = input.recipientName.trim();
-  const expiresAtLabel = formatDateTime(input.expiresAt);
-  const subject = `Formulier van ${organizationName}`;
-
-  const text = [
-    `Beste ${recipientName},`,
-    "",
-    `${organizationName} heeft een beveiligd formulier voor u klaargezet.`,
-    "Via onderstaande link kunt u het formulier invullen en ondertekenen:",
-    "",
-    input.formUrl,
-    "",
-    `De link is ${FORM_REQUEST_TTL_DAYS} dagen geldig (tot ${expiresAtLabel}).`,
-    "Deel deze link niet met anderen.",
-    "",
-    "Met vriendelijke groet,",
-    organizationName,
-  ].join("\n");
-
-  const html = [
-    `<p>Beste ${escapeHtml(recipientName)},</p>`,
-    `<p>${escapeHtml(organizationName)} heeft een beveiligd formulier voor u klaargezet.</p>`,
-    "<p>Via onderstaande link kunt u het formulier invullen en ondertekenen:</p>",
-    `<p><a href="${escapeHtml(input.formUrl)}">Formulier openen</a></p>`,
-    `<p>De link is ${FORM_REQUEST_TTL_DAYS} dagen geldig (tot ${escapeHtml(expiresAtLabel)}).</p>`,
-    "<p>Deel deze link niet met anderen.</p>",
-    `<p>Met vriendelijke groet,<br>${escapeHtml(organizationName)}</p>`,
-  ].join("");
-
-  return { subject, html, text };
+async function markInvitationSent(
+  db: Pick<Database, "update">,
+  formRequestId: string,
+  sentAt: Date,
+) {
+  await db
+    .update(formRequests)
+    .set({ invitationSentAt: sentAt })
+    .where(eq(formRequests.id, formRequestId));
 }
 
 export async function sendFormRequestInvitation(
-  db: Pick<Database, "insert">,
+  db: Pick<Database, "insert" | "update" | "select">,
   input: FormRequestInvitationInput,
 ): Promise<SendEmailResult | null> {
   if (!isEmailConfigured()) {
     return null;
   }
 
-  const content = buildFormRequestInvitationEmail(input);
+  const [request] = await db
+    .select({
+      invitationSubjectSnapshot: formRequests.invitationSubjectSnapshot,
+      invitationBodySnapshot: formRequests.invitationBodySnapshot,
+      invitationSentAt: formRequests.invitationSentAt,
+    })
+    .from(formRequests)
+    .where(eq(formRequests.id, input.formRequestId))
+    .limit(1);
 
-  return sendEmail(db, {
+  if (
+    !request?.invitationSubjectSnapshot ||
+    !request.invitationBodySnapshot
+  ) {
+    throw new EmailError("Invitation mail snapshots are missing");
+  }
+
+  const content = renderedEmailFromSnapshot(
+    request.invitationSubjectSnapshot,
+    request.invitationBodySnapshot,
+  );
+
+  const sentAt = new Date();
+  const delivery = await sendEmail(db, {
     organizationId: input.organizationId,
     to: input.recipientEmail,
     subject: content.subject,
     html: content.html,
     text: content.text,
     formRequestId: input.formRequestId,
+    emailKind: "invitation",
   });
+
+  if (!request.invitationSentAt) {
+    await markInvitationSent(db, input.formRequestId, sentAt);
+  }
+
+  return delivery;
 }

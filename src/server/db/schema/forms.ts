@@ -15,9 +15,11 @@ import {
 import { createdAtColumn, updatedAtColumn, utcTimestamp } from "./columns";
 import { clients, organizations, users } from "./core";
 import {
+  documentCategoryEnum,
   documentFieldTypeEnum,
   formDocumentStatusEnum,
   formRequestStatusEnum,
+  organizationEmailTemplateKindEnum,
   signatureRoleEnum,
   templateStatusEnum,
 } from "./enums";
@@ -33,6 +35,7 @@ export const documentTemplates = pgTable(
     description: text("description"),
     blobKey: text("blob_key").notNull(),
     sha256: text("sha256").notNull(),
+    category: documentCategoryEnum("category").notNull().default("intake"),
     status: templateStatusEnum("status").notNull().default("active"),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
@@ -122,6 +125,16 @@ export const formRequests = pgTable(
     expiresAt: utcTimestamp("expires_at").notNull(),
     cancelledAt: utcTimestamp("cancelled_at"),
     cancelReason: text("cancel_reason"),
+    documentCategory: documentCategoryEnum("document_category"),
+    invitationSubjectSnapshot: text("invitation_subject_snapshot"),
+    invitationBodySnapshot: text("invitation_body_snapshot"),
+    confirmationKindSnapshot: organizationEmailTemplateKindEnum(
+      "confirmation_kind_snapshot",
+    ),
+    confirmationSubjectSnapshot: text("confirmation_subject_snapshot"),
+    confirmationBodySnapshot: text("confirmation_body_snapshot"),
+    invitationSentAt: utcTimestamp("invitation_sent_at"),
+    clientConfirmationSentAt: utcTimestamp("client_confirmation_sent_at"),
     createdAt: createdAtColumn(),
   },
   (table) => [

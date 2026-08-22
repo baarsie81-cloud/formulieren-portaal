@@ -28,6 +28,7 @@ describe("logEmailSentEvent", () => {
       reminderDeliveryId: undefined,
       providerMessageId: "msg_123",
       eventType: "sent",
+      emailKind: undefined,
       recipientEmail: "client@example.com",
       occurredAt,
     });

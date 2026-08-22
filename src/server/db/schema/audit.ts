@@ -10,7 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createdAtColumn, utcTimestamp } from "./columns";
 import { organizations, users } from "./core";
-import { actorTypeEnum, emailEventTypeEnum } from "./enums";
+import { actorTypeEnum, emailEventTypeEnum, emailKindEnum } from "./enums";
 import { formDocuments, formRequests } from "./forms";
 import { reminderDeliveries } from "./reminders";
 import { formSessions } from "./sessions";
@@ -92,6 +92,7 @@ export const emailEvents = pgTable(
     reminderDeliveryId: uuid("reminder_delivery_id"),
     providerMessageId: text("provider_message_id").notNull(),
     eventType: emailEventTypeEnum("event_type").notNull(),
+    emailKind: emailKindEnum("email_kind"),
     recipientEmail: text("recipient_email").notNull(),
     occurredAt: utcTimestamp("occurred_at").notNull(),
     createdAt: createdAtColumn(),

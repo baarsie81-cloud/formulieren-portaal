@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EMAIL_KINDS } from "@/lib/constants";
 
 export const sendEmailInputSchema = z.object({
   organizationId: z.uuid(),
@@ -22,6 +23,7 @@ export const sendEmailInputSchema = z.object({
     .optional(),
   formRequestId: z.uuid().optional(),
   reminderDeliveryId: z.uuid().optional(),
+  emailKind: z.enum(EMAIL_KINDS).optional(),
 });
 
 export type SendEmailInput = z.infer<typeof sendEmailInputSchema>;

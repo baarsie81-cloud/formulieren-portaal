@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import { auditEvents, emailEvents } from "./audit";
+import { organizationEmailTemplates } from "./email-templates";
 import {
   clients,
   organizationMembers,
@@ -20,6 +21,7 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   members: many(organizationMembers),
   clients: many(clients),
   documentTemplates: many(documentTemplates),
+  emailTemplates: many(organizationEmailTemplates),
   formRequests: many(formRequests),
   reminderRules: many(reminderRules),
   auditEvents: many(auditEvents),
@@ -240,6 +242,16 @@ export const auditEventsRelations = relations(auditEvents, ({ one }) => ({
     references: [formSessions.id],
   }),
 }));
+
+export const organizationEmailTemplatesRelations = relations(
+  organizationEmailTemplates,
+  ({ one }) => ({
+    organization: one(organizations, {
+      fields: [organizationEmailTemplates.organizationId],
+      references: [organizations.id],
+    }),
+  }),
+);
 
 export const emailEventsRelations = relations(emailEvents, ({ one }) => ({
   organization: one(organizations, {

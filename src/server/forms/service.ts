@@ -20,6 +20,8 @@ import type { CreateFormRequestInput } from "@/server/forms/schema";
 import { formRequestIdSchema } from "@/server/forms/schema";
 import { documentsInRequest, requestInOrganization } from "@/server/forms/scope";
 import { toFieldsSchemaSnapshot } from "@/server/forms/snapshot";
+import { buildRequestMailSnapshotsForCreate } from "@/server/forms/mail-config";
+import { getPublicOrigin } from "@/server/forms/request-meta";
 import {
   effectiveRequestStatus,
   isWritableRequestStatus,
@@ -175,6 +177,18 @@ export async function createFormRequest(
   const rawToken = generateRawSecret();
   const tokenHash = hashSecret(rawToken);
   const expiresAt = new Date(Date.now() + FORM_REQUEST_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const publicOrigin = await getPublicOrigin();
+  const mailSnapshots = await buildRequestMailSnapshotsForCreate(tenant, {
+    templateId: template.id,
+    recipientName: client.displayName,
+    invitationSubject: input.invitationSubject,
+    invitationBody: input.invitationBody,
+    confirmationSubject: input.confirmationSubject,
+    confirmationBody: input.confirmationBody,
+    rawToken,
+    expiresAt,
+    publicOrigin,
+  });
   const db = getDb();
 
   const request = await db.transaction(async (tx) => {
@@ -188,6 +202,12 @@ export async function createFormRequest(
         recipientEmail: client.email,
         status: "sent",
         expiresAt,
+        documentCategory: mailSnapshots.documentCategory,
+        invitationSubjectSnapshot: mailSnapshots.invitationSubjectSnapshot,
+        invitationBodySnapshot: mailSnapshots.invitationBodySnapshot,
+        confirmationKindSnapshot: mailSnapshots.confirmationKind,
+        confirmationSubjectSnapshot: mailSnapshots.confirmationSubjectSnapshot,
+        confirmationBodySnapshot: mailSnapshots.confirmationBodySnapshot,
       })
       .returning();
 

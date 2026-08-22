@@ -66,6 +66,39 @@ export const RAW_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 export const PUBLIC_FORM_INVALID_MESSAGE =
   "Deze link is ongeldig of verlopen. Neem contact op met de praktijk als je een nieuw formulier verwacht.";
 
+export const DOCUMENT_CATEGORIES = ["intake", "contract"] as const;
+
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+
+export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
+  intake: "Intake",
+  contract: "Contract",
+};
+
+export const ORGANIZATION_EMAIL_TEMPLATE_KINDS = [
+  "intake_invitation",
+  "contract_invitation",
+  "intake_confirmation",
+  "contract_confirmation",
+] as const;
+
+export type OrganizationEmailTemplateKind =
+  (typeof ORGANIZATION_EMAIL_TEMPLATE_KINDS)[number];
+
+export const ORGANIZATION_EMAIL_TEMPLATE_KIND_LABELS: Record<
+  OrganizationEmailTemplateKind,
+  string
+> = {
+  intake_invitation: "Intake-uitnodiging",
+  contract_invitation: "Contract-uitnodiging",
+  intake_confirmation: "Intake-bevestiging",
+  contract_confirmation: "Contract-bevestiging",
+};
+
+export const EMAIL_KINDS = ["invitation", "confirmation"] as const;
+
+export type EmailKind = (typeof EMAIL_KINDS)[number];
+
 /** Max PNG size for a client-drawn or typed-rendered signature. */
 export const MAX_SIGNATURE_PNG_BYTES = 512 * 1024;
 
