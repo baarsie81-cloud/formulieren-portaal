@@ -3,6 +3,11 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import {
+  DOCUMENT_CATEGORIES,
+  DOCUMENT_CATEGORY_LABELS,
+  type DocumentCategory,
+} from "@/lib/constants";
+import {
   updateTemplateMetadataAction,
   type TemplateFormState,
 } from "@/server/templates/actions";
@@ -12,6 +17,7 @@ type TemplateMetadataFormProps = {
   defaultValues: {
     name: string;
     description: string | null;
+    category: DocumentCategory;
   };
 };
 
@@ -48,6 +54,24 @@ export function TemplateMetadataForm({
           defaultValue={defaultValues.name}
           className="rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900"
         />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="category" className="text-sm font-medium text-neutral-800">
+          Formuliertype
+        </label>
+        <select
+          id="category"
+          name="category"
+          required
+          defaultValue={defaultValues.category}
+          className="rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900"
+        >
+          {DOCUMENT_CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {DOCUMENT_CATEGORY_LABELS[category]}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="description" className="text-sm font-medium text-neutral-800">

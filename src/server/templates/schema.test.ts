@@ -7,25 +7,68 @@ import {
 } from "@/server/templates/schema";
 
 describe("parseTemplateMetadata", () => {
-  it("accepts a name and optional description", () => {
+  it("accepts valid intake and contract categories", () => {
     expect(
       parseTemplateMetadata({
         name: "  Intake  ",
         description: "  ",
+        category: "intake",
       }),
     ).toEqual({
       success: true,
       data: {
         name: "Intake",
         description: null,
+        category: "intake",
+      },
+    });
+
+    expect(
+      parseTemplateMetadata({
+        name: "Contract",
+        description: "Toelichting",
+        category: "contract",
+      }),
+    ).toEqual({
+      success: true,
+      data: {
+        name: "Contract",
+        description: "Toelichting",
+        category: "contract",
       },
     });
   });
 
   it("rejects a missing name", () => {
-    expect(parseTemplateMetadata({ name: "   ", description: "" })).toEqual({
+    expect(
+      parseTemplateMetadata({ name: "   ", description: "", category: "intake" }),
+    ).toEqual({
       success: false,
       error: "Vul een naam in.",
+    });
+  });
+
+  it("rejects an invalid category", () => {
+    expect(
+      parseTemplateMetadata({
+        name: "Formulier",
+        description: "",
+        category: "onbekend",
+      }),
+    ).toEqual({
+      success: false,
+      error: "Kies een formuliertype (Intake of Contract).",
+    });
+
+    expect(
+      parseTemplateMetadata({
+        name: "Formulier",
+        description: "",
+        category: "",
+      }),
+    ).toEqual({
+      success: false,
+      error: "Kies een formuliertype (Intake of Contract).",
     });
   });
 });

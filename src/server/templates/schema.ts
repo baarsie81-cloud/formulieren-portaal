@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { DOCUMENT_FIELD_TYPES, SIGNATURE_ROLES } from "@/lib/constants";
+import {
+  DOCUMENT_CATEGORIES,
+  DOCUMENT_FIELD_TYPES,
+  SIGNATURE_ROLES,
+} from "@/lib/constants";
 
 const optionalNullableText = (max: number) =>
   z
@@ -13,6 +17,7 @@ export const templateIdSchema = z.uuid();
 export const templateMetadataSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: optionalNullableText(2000),
+  category: z.enum(DOCUMENT_CATEGORIES),
 });
 
 export type TemplateMetadataInput = z.infer<typeof templateMetadataSchema>;
@@ -45,12 +50,14 @@ export type FieldMappingInput = z.infer<typeof fieldMappingSchema>;
 export type TemplateMetadataFields = {
   name: string;
   description: string;
+  category: string;
 };
 
 export function readTemplateMetadataFields(formData: FormData): TemplateMetadataFields {
   return {
     name: readFormString(formData, "name"),
     description: readFormString(formData, "description"),
+    category: readFormString(formData, "category"),
   };
 }
 
@@ -126,6 +133,10 @@ function metadataValidationMessage(error: z.ZodError): string {
 
   if (field === "description") {
     return "Omschrijving is te lang.";
+  }
+
+  if (field === "category") {
+    return "Kies een formuliertype (Intake of Contract).";
   }
 
   return "Controleer de ingevulde gegevens.";
