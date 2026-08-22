@@ -1,56 +1,18 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
-import type { DocumentCategory } from "@/lib/constants";
 import type { Database } from "@/server/db";
 import { formRequests } from "@/server/db/schema";
 import { sendEmail, isEmailConfigured } from "@/server/email/send";
 import type { SendEmailResult } from "@/server/email/schema";
-import {
-  buildInvitationTemplateContext,
-  getDefaultEmailTemplate,
-  invitationTemplateKindForCategory,
-  renderEmailTemplate,
-  renderedEmailFromSnapshot,
-  resolveOrganizationEmailTemplate,
-} from "@/server/email/templates";
+import { renderedEmailFromSnapshot } from "@/server/email/templates";
+import { EmailError } from "@/server/errors";
 
 export type FormRequestInvitationInput = {
   organizationId: string;
-  organizationName: string;
   recipientEmail: string;
-  recipientName: string;
   formRequestId: string;
-  formUrl: string;
-  expiresAt: Date;
-  documentCategory: DocumentCategory;
 };
-
-export function buildFormRequestInvitationEmail(input: FormRequestInvitationInput) {
-  const templateKind = invitationTemplateKindForCategory(input.documentCategory);
-
-  return renderEmailTemplate(
-    getDefaultEmailTemplate(templateKind),
-    buildInvitationTemplateContext(input),
-  );
-}
-
-async function persistInvitationSnapshots(
-  db: Pick<Database, "update">,
-  formRequestId: string,
-  snapshots: {
-    subject: string;
-    text: string;
-  },
-) {
-  await db
-    .update(formRequests)
-    .set({
-      invitationSubjectSnapshot: snapshots.subject,
-      invitationBodySnapshot: snapshots.text,
-    })
-    .where(eq(formRequests.id, formRequestId));
-}
 
 async function markInvitationSent(
   db: Pick<Database, "update">,
@@ -81,30 +43,17 @@ export async function sendFormRequestInvitation(
     .where(eq(formRequests.id, input.formRequestId))
     .limit(1);
 
-  const content =
-    request?.invitationSubjectSnapshot && request.invitationBodySnapshot
-      ? renderedEmailFromSnapshot(
-          request.invitationSubjectSnapshot,
-          request.invitationBodySnapshot,
-        )
-      : await (async () => {
-          const templateKind = invitationTemplateKindForCategory(
-            input.documentCategory,
-          );
-          const template = await resolveOrganizationEmailTemplate(
-            db,
-            input.organizationId,
-            templateKind,
-          );
-          const rendered = renderEmailTemplate(
-            template,
-            buildInvitationTemplateContext(input),
-          );
+  if (
+    !request?.invitationSubjectSnapshot ||
+    !request.invitationBodySnapshot
+  ) {
+    throw new EmailError("Invitation mail snapshots are missing");
+  }
 
-          await persistInvitationSnapshots(db, input.formRequestId, rendered);
-
-          return rendered;
-        })();
+  const content = renderedEmailFromSnapshot(
+    request.invitationSubjectSnapshot,
+    request.invitationBodySnapshot,
+  );
 
   const sentAt = new Date();
   const delivery = await sendEmail(db, {
@@ -117,7 +66,7 @@ export async function sendFormRequestInvitation(
     emailKind: "invitation",
   });
 
-  if (!request?.invitationSentAt) {
+  if (!request.invitationSentAt) {
     await markInvitationSent(db, input.formRequestId, sentAt);
   }
 

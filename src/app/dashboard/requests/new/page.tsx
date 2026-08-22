@@ -28,9 +28,9 @@ export default async function NewRequestPage({
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">Cliëntlink maken</h1>
         <p className="mt-1 text-neutral-600">
-          Kies een cliënt en een bestaand PDF-sjabloon.
+          Kies een cliënt, een PDF-sjabloon en controleer beide e-mailteksten.
           {emailEnabled
-            ? " De cliënt ontvangt een uitnodiging per e-mail met een beveiligde link."
+            ? " De cliënt ontvangt direct een uitnodiging; de bevestiging volgt na ondertekening."
             : " Er wordt een beveiligde link gemaakt; e-mail is nog niet geconfigureerd."}
         </p>
       </div>
@@ -66,6 +66,7 @@ export default async function NewRequestPage({
           templates={templates.map((template) => ({
             id: template.id,
             label: template.name,
+            category: template.category,
           }))}
           defaultClientId={clientId}
         />

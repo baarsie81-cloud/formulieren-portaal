@@ -22,10 +22,7 @@ export type {
   ResolvedEmailTemplate,
 } from "@/server/email/templates";
 export type { FormRequestInvitationInput } from "@/server/email/invitation";
-export {
-  buildFormRequestInvitationEmail,
-  sendFormRequestInvitation,
-} from "@/server/email/invitation";
+export { sendFormRequestInvitation } from "@/server/email/invitation";
 export {
   buildFormCompletionClientEmail,
   buildFormCompletionStaffEmail,

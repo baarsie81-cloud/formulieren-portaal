@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/server/db";
+import { EmailError } from "@/server/errors";
 
 vi.mock("server-only", () => ({}));
 
@@ -10,27 +11,7 @@ vi.mock("@/server/email/send", () => ({
   isEmailConfigured,
 }));
 
-const resolveOrganizationEmailTemplate = vi.fn();
-const renderedEmailFromSnapshot = vi.fn();
-vi.mock("@/server/email/templates", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/server/email/templates")>();
-  return {
-    ...actual,
-    resolveOrganizationEmailTemplate,
-    renderedEmailFromSnapshot,
-  };
-});
-
-const {
-  buildFormRequestInvitationEmail,
-  sendFormRequestInvitation,
-} = await import("@/server/email/invitation");
-
-const {
-  confirmationTemplateKindForCategory,
-  invitationTemplateKindForCategory,
-} = await import("@/server/email/templates");
-
+const { sendFormRequestInvitation } = await import("@/server/email/invitation");
 const {
   sendFormCompletionClientEmail,
   sendFormCompletionNotifications,
@@ -38,13 +19,8 @@ const {
 
 const invitationInput = {
   organizationId: "11111111-1111-4111-8111-111111111111",
-  organizationName: "Praktijk De Linde",
   recipientEmail: "client@example.com",
-  recipientName: "Ada Lovelace",
   formRequestId: "22222222-2222-4222-8222-222222222222",
-  formUrl: "https://formulierendesk.nl/f/abc123token",
-  expiresAt: new Date("2026-09-02T10:00:00.000Z"),
-  documentCategory: "intake" as const,
 };
 
 function createInvitationDb(requestRow: {
@@ -52,182 +28,75 @@ function createInvitationDb(requestRow: {
   invitationBodySnapshot?: string | null;
   invitationSentAt?: Date | null;
 }) {
-  const update = vi.fn(() => ({
-    set: vi.fn(() => ({
-      where: vi.fn().mockResolvedValue(undefined),
-    })),
-  }));
-
   return {
-    db: {
-      insert: vi.fn(),
-      update,
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn().mockResolvedValue([requestRow]),
-          })),
+    insert: vi.fn(),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue(undefined),
+      })),
+    })),
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn().mockResolvedValue([requestRow]),
         })),
       })),
-    } as unknown as Pick<Database, "insert" | "update" | "select">,
-    update,
-  };
+    })),
+  } as unknown as Pick<Database, "insert" | "update" | "select">;
 }
 
 function createConfirmationDb() {
-  const update = vi.fn(() => ({
-    set: vi.fn(() => ({
-      where: vi.fn().mockResolvedValue(undefined),
-    })),
-  }));
-
   return {
-    db: {
-      insert: vi.fn(),
-      update,
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn().mockResolvedValue([{ email: "staff@praktijk.nl" }]),
-          })),
-        })),
+    insert: vi.fn(),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue(undefined),
       })),
-    } as unknown as Pick<Database, "insert" | "update" | "select">,
-    update,
-  };
-}
-
-describe("buildFormRequestInvitationEmail", () => {
-  it("builds Dutch invitation content with organization name and secure link", () => {
-    const content = buildFormRequestInvitationEmail(invitationInput);
-
-    expect(content.subject).toBe("Formulier van Praktijk De Linde");
-    expect(content.text).toContain("Praktijk De Linde");
-    expect(content.text).toContain("https://formulierendesk.nl/f/abc123token");
-    expect(content.text).toContain("14 dagen geldig");
-    expect(content.html).toContain("Formulier openen");
-    expect(content.html).toContain("https://formulierendesk.nl/f/abc123token");
-  });
-
-  it("uses contract defaults for contract requests", () => {
-    const content = buildFormRequestInvitationEmail({
-      ...invitationInput,
-      documentCategory: "contract",
-    });
-
-    expect(content.subject).toBe("Contractformulier van Praktijk De Linde");
-    expect(content.text).toContain("contractformulier");
-  });
-});
-
-describe("mailflow template kinds", () => {
-  it("maps intake and contract categories to the correct template kinds", () => {
-    expect(invitationTemplateKindForCategory("intake")).toBe("intake_invitation");
-    expect(invitationTemplateKindForCategory("contract")).toBe("contract_invitation");
-    expect(confirmationTemplateKindForCategory("intake")).toBe("intake_confirmation");
-    expect(confirmationTemplateKindForCategory("contract")).toBe("contract_confirmation");
-  });
-
-  it("loads organization templates by kind", async () => {
-    const { resolveOrganizationEmailTemplate: resolveActual } =
-      await vi.importActual<typeof import("@/server/email/templates")>(
-        "@/server/email/templates",
-      );
-
-    const select = vi.fn(() => ({
+    })),
+    select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          limit: vi.fn().mockResolvedValue([
-            {
-              subjectTemplate: "Contract {{organizationName}}",
-              bodyTemplate: "Beste {{recipientName}}",
-            },
-          ]),
+          limit: vi.fn().mockResolvedValue([{ email: "staff@praktijk.nl" }]),
         })),
       })),
-    }));
-    const db = { select } as unknown as Pick<Database, "select">;
-
-    const template = await resolveActual(
-      db,
-      invitationInput.organizationId,
-      "contract_invitation",
-    );
-
-    expect(template.kind).toBe("contract_invitation");
-    expect(template.subjectTemplate).toBe("Contract {{organizationName}}");
-  });
-});
+    })),
+  } as unknown as Pick<Database, "insert" | "update" | "select">;
+}
 
 describe("sendFormRequestInvitation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     isEmailConfigured.mockReturnValue(true);
     sendEmail.mockResolvedValue({ messageId: "msg_invite" });
-    resolveOrganizationEmailTemplate.mockResolvedValue({
-      kind: "intake_invitation",
-      subjectTemplate: "Nieuw {{organizationName}}",
-      bodyTemplate: "Hallo {{recipientName}} {{formUrl}}",
-    });
-    renderedEmailFromSnapshot.mockReturnValue({
-      subject: "Opgeslagen onderwerp",
-      text: "Opgeslagen body",
-      html: "<p>Opgeslagen body</p>",
-    });
   });
 
-  it("skips sending when email is not configured", async () => {
-    isEmailConfigured.mockReturnValue(false);
-    const { db } = createInvitationDb({});
-
-    const result = await sendFormRequestInvitation(db, invitationInput);
-
-    expect(result).toBeNull();
-    expect(sendEmail).not.toHaveBeenCalled();
-  });
-
-  it("persists snapshots and sends exclusively from rendered content", async () => {
-    const { db, update } = createInvitationDb({});
-
-    await sendFormRequestInvitation(db, invitationInput);
-
-    expect(resolveOrganizationEmailTemplate).toHaveBeenCalledWith(
-      db,
-      invitationInput.organizationId,
-      "intake_invitation",
-    );
-    expect(update).toHaveBeenCalled();
-    expect(sendEmail).toHaveBeenCalledWith(db, {
-      organizationId: invitationInput.organizationId,
-      to: "client@example.com",
-      subject: "Nieuw Praktijk De Linde",
-      html: expect.stringContaining("Hallo Ada Lovelace"),
-      text: expect.stringContaining("https://formulierendesk.nl/f/abc123token"),
-      formRequestId: invitationInput.formRequestId,
-      emailKind: "invitation",
-    });
-  });
-
-  it("keeps invitation snapshots unchanged when organization templates change", async () => {
-    const { db } = createInvitationDb({
+  it("sends exclusively from stored invitation snapshots", async () => {
+    const db = createInvitationDb({
       invitationSubjectSnapshot: "Opgeslagen onderwerp",
       invitationBodySnapshot: "Opgeslagen body",
     });
 
     await sendFormRequestInvitation(db, invitationInput);
 
-    expect(resolveOrganizationEmailTemplate).not.toHaveBeenCalled();
-    expect(renderedEmailFromSnapshot).toHaveBeenCalledWith(
-      "Opgeslagen onderwerp",
-      "Opgeslagen body",
-    );
-    expect(sendEmail).toHaveBeenCalledWith(
-      db,
-      expect.objectContaining({
-        subject: "Opgeslagen onderwerp",
-        text: "Opgeslagen body",
-        emailKind: "invitation",
-      }),
+    expect(sendEmail).toHaveBeenCalledWith(db, {
+      organizationId: invitationInput.organizationId,
+      to: invitationInput.recipientEmail,
+      subject: "Opgeslagen onderwerp",
+      text: "Opgeslagen body",
+      html: expect.stringContaining("Opgeslagen body"),
+      formRequestId: invitationInput.formRequestId,
+      emailKind: "invitation",
+    });
+  });
+
+  it("throws when invitation snapshots are missing", async () => {
+    const db = createInvitationDb({
+      invitationSubjectSnapshot: null,
+      invitationBodySnapshot: null,
+    });
+
+    await expect(sendFormRequestInvitation(db, invitationInput)).rejects.toBeInstanceOf(
+      EmailError,
     );
   });
 });
@@ -235,48 +104,39 @@ describe("sendFormRequestInvitation", () => {
 describe("sendFormCompletionClientEmail", () => {
   const clientInput = {
     organizationId: invitationInput.organizationId,
-    organizationName: invitationInput.organizationName,
+    organizationName: "Praktijk De Linde",
     recipientEmail: invitationInput.recipientEmail,
-    recipientName: invitationInput.recipientName,
+    recipientName: "Ada Lovelace",
     formRequestId: invitationInput.formRequestId,
-    documentCategory: "contract" as const,
+    documentCategory: "intake" as const,
     clientConfirmationSentAt: null,
-    confirmationSubjectSnapshot: null,
-    confirmationBodySnapshot: null,
+    confirmationSubjectSnapshot: "Opgeslagen bevestiging",
+    confirmationBodySnapshot: "Bedankt Ada",
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
     isEmailConfigured.mockReturnValue(true);
     sendEmail.mockResolvedValue({ messageId: "msg_client" });
-    resolveOrganizationEmailTemplate.mockResolvedValue({
-      kind: "contract_confirmation",
-      subjectTemplate: "Contract klaar — {{organizationName}}",
-      bodyTemplate: "Beste {{recipientName}}",
-    });
   });
 
-  it("uses the contract confirmation template for contract requests", async () => {
-    const { db } = createConfirmationDb();
+  it("uses the stored confirmation snapshot at finalize", async () => {
+    const db = createConfirmationDb();
 
     await sendFormCompletionClientEmail(db, clientInput);
 
-    expect(resolveOrganizationEmailTemplate).toHaveBeenCalledWith(
-      db,
-      clientInput.organizationId,
-      "contract_confirmation",
-    );
     expect(sendEmail).toHaveBeenCalledWith(
       db,
       expect.objectContaining({
+        subject: "Opgeslagen bevestiging",
+        text: "Bedankt Ada",
         emailKind: "confirmation",
-        subject: "Contract klaar — Praktijk De Linde",
       }),
     );
   });
 
-  it("does not send duplicate client confirmation mail", async () => {
-    const { db } = createConfirmationDb();
+  it("does not send duplicate confirmation mail on retry", async () => {
+    const db = createConfirmationDb();
 
     const result = await sendFormCompletionClientEmail(db, {
       ...clientInput,
@@ -286,6 +146,18 @@ describe("sendFormCompletionClientEmail", () => {
     expect(result).toBeNull();
     expect(sendEmail).not.toHaveBeenCalled();
   });
+
+  it("throws when confirmation snapshots are missing", async () => {
+    const db = createConfirmationDb();
+
+    await expect(
+      sendFormCompletionClientEmail(db, {
+        ...clientInput,
+        confirmationSubjectSnapshot: null,
+        confirmationBodySnapshot: null,
+      }),
+    ).rejects.toBeInstanceOf(EmailError);
+  });
 });
 
 describe("sendFormCompletionNotifications", () => {
@@ -293,43 +165,26 @@ describe("sendFormCompletionNotifications", () => {
     vi.clearAllMocks();
     isEmailConfigured.mockReturnValue(true);
     sendEmail.mockResolvedValue({ messageId: "msg_done" });
-    resolveOrganizationEmailTemplate.mockResolvedValue({
-      kind: "intake_confirmation",
-      subjectTemplate: "Bevestiging — {{organizationName}}",
-      bodyTemplate: "Beste {{recipientName}}",
-    });
   });
 
   it("still sends staff mail without email_kind", async () => {
-    const { db } = createConfirmationDb();
+    const db = createConfirmationDb();
 
     await sendFormCompletionNotifications(db, {
       organizationId: invitationInput.organizationId,
-      organizationName: invitationInput.organizationName,
+      organizationName: "Praktijk De Linde",
       recipientEmail: invitationInput.recipientEmail,
-      recipientName: invitationInput.recipientName,
+      recipientName: "Ada Lovelace",
       formRequestId: invitationInput.formRequestId,
       createdByUserId: "33333333-3333-4333-8333-333333333333",
       documentCategory: "intake",
       clientConfirmationSentAt: null,
-      confirmationSubjectSnapshot: null,
-      confirmationBodySnapshot: null,
+      confirmationSubjectSnapshot: "Bevestiging",
+      confirmationBodySnapshot: "Bedankt",
       dashboardOrigin: "https://formulierendesk.nl",
     });
 
     expect(sendEmail).toHaveBeenCalledTimes(2);
-    expect(sendEmail).toHaveBeenNthCalledWith(
-      1,
-      db,
-      expect.objectContaining({ emailKind: "confirmation" }),
-    );
-    expect(sendEmail).toHaveBeenNthCalledWith(
-      2,
-      db,
-      expect.objectContaining({
-        to: "staff@praktijk.nl",
-      }),
-    );
     expect(sendEmail.mock.calls[1]?.[1]).not.toHaveProperty("emailKind");
   });
 });
@@ -341,12 +196,12 @@ describe("logEmailSentEvent email_kind", () => {
       insert: vi.fn(() => ({ values })),
     } as unknown as Pick<Database, "insert">;
 
-    const { logEmailSentEvent: logEvent } = await import("@/server/email/events");
+    const { logEmailSentEvent } = await import("@/server/email/events");
 
-    await logEvent(db, {
+    await logEmailSentEvent(db, {
       organizationId: invitationInput.organizationId,
       providerMessageId: "msg_123",
-      recipientEmail: "client@example.com",
+      recipientEmail: invitationInput.recipientEmail,
       formRequestId: invitationInput.formRequestId,
       emailKind: "invitation",
     });

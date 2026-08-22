@@ -6,14 +6,8 @@ import type { Database } from "@/server/db";
 import { formRequests, organizations, secureTokens, users } from "@/server/db/schema";
 import { sendEmail, isEmailConfigured } from "@/server/email/send";
 import type { SendEmailResult } from "@/server/email/schema";
-import {
-  buildConfirmationTemplateContext,
-  confirmationTemplateKindForCategory,
-  getDefaultEmailTemplate,
-  renderEmailTemplate,
-  renderedEmailFromSnapshot,
-  resolveOrganizationEmailTemplate,
-} from "@/server/email/templates";
+import { renderedEmailFromSnapshot } from "@/server/email/templates";
+import { EmailError } from "@/server/errors";
 import { parseRawToken } from "@/server/forms/schema";
 import { hashSecret } from "@/server/forms/token";
 
@@ -125,17 +119,13 @@ async function loadStaffEmail(
   return row?.email ?? null;
 }
 
-export function buildFormCompletionClientEmail(
-  input: Pick<
-    FormCompletionClientEmailInput,
-    "organizationName" | "recipientName" | "documentCategory"
-  >,
-) {
-  const templateKind = confirmationTemplateKindForCategory(input.documentCategory);
-
-  return renderEmailTemplate(
-    getDefaultEmailTemplate(templateKind),
-    buildConfirmationTemplateContext(input),
+export function buildFormCompletionClientEmail(input: {
+  confirmationSubjectSnapshot: string;
+  confirmationBodySnapshot: string;
+}) {
+  return renderedEmailFromSnapshot(
+    input.confirmationSubjectSnapshot,
+    input.confirmationBodySnapshot,
   );
 }
 
@@ -163,25 +153,6 @@ export function buildFormCompletionStaffEmail(input: FormCompletionStaffEmailInp
   return { subject, html, text };
 }
 
-async function persistConfirmationSnapshots(
-  db: Pick<Database, "update">,
-  formRequestId: string,
-  snapshots: {
-    kind: ReturnType<typeof confirmationTemplateKindForCategory>;
-    subject: string;
-    text: string;
-  },
-) {
-  await db
-    .update(formRequests)
-    .set({
-      confirmationKindSnapshot: snapshots.kind,
-      confirmationSubjectSnapshot: snapshots.subject,
-      confirmationBodySnapshot: snapshots.text,
-    })
-    .where(eq(formRequests.id, formRequestId));
-}
-
 async function markClientConfirmationSent(
   db: Pick<Database, "update">,
   formRequestId: string,
@@ -194,7 +165,7 @@ async function markClientConfirmationSent(
 }
 
 export async function sendFormCompletionClientEmail(
-  db: Pick<Database, "insert" | "update" | "select">,
+  db: Pick<Database, "insert" | "update">,
   input: FormCompletionClientEmailInput,
 ): Promise<SendEmailResult | null> {
   if (!isEmailConfigured()) {
@@ -205,34 +176,14 @@ export async function sendFormCompletionClientEmail(
     return null;
   }
 
-  const content =
-    input.confirmationSubjectSnapshot && input.confirmationBodySnapshot
-      ? renderedEmailFromSnapshot(
-          input.confirmationSubjectSnapshot,
-          input.confirmationBodySnapshot,
-        )
-      : await (async () => {
-          const templateKind = confirmationTemplateKindForCategory(
-            input.documentCategory,
-          );
-          const template = await resolveOrganizationEmailTemplate(
-            db,
-            input.organizationId,
-            templateKind,
-          );
-          const rendered = renderEmailTemplate(
-            template,
-            buildConfirmationTemplateContext(input),
-          );
+  if (!input.confirmationSubjectSnapshot || !input.confirmationBodySnapshot) {
+    throw new EmailError("Confirmation mail snapshots are missing");
+  }
 
-          await persistConfirmationSnapshots(db, input.formRequestId, {
-            kind: templateKind,
-            subject: rendered.subject,
-            text: rendered.text,
-          });
-
-          return rendered;
-        })();
+  const content = renderedEmailFromSnapshot(
+    input.confirmationSubjectSnapshot,
+    input.confirmationBodySnapshot,
+  );
 
   const sentAt = new Date();
   const delivery = await sendEmail(db, {

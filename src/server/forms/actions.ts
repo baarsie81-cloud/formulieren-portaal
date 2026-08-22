@@ -5,13 +5,13 @@ import { requireDashboardContext } from "@/server/auth/guard";
 import { getDb } from "@/server/db";
 import { sendFormRequestInvitation } from "@/server/email/invitation";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
+import { loadRequestMailDefaults, type RequestMailDefaults } from "@/server/forms/mail-config";
 import {
   formRequestIdSchema,
   parseCreateFormRequest,
   readCreateFormRequestFields,
 } from "@/server/forms/schema";
 import { writeCreatedTokenCookie } from "@/server/forms/cookie";
-import { getPublicOrigin, publicFormUrl } from "@/server/forms/request-meta";
 import {
   cancelFormRequest,
   createFormRequest,
@@ -21,6 +21,19 @@ import {
 export type RequestFormState = {
   error: string | null;
 };
+
+export async function loadRequestMailDefaultsAction(
+  clientId: string,
+  templateId: string,
+): Promise<RequestMailDefaults | null> {
+  const tenant = await requireDashboardContext();
+
+  try {
+    return await loadRequestMailDefaults(tenant, { clientId, templateId });
+  } catch {
+    return null;
+  }
+}
 
 export async function createFormRequestAction(
   _state: RequestFormState,
@@ -43,19 +56,13 @@ export async function createFormRequestAction(
 
   await writeCreatedTokenCookie(created.request.id, created.rawToken);
 
-  const formUrl = publicFormUrl(await getPublicOrigin(), created.rawToken);
   let emailFailed = false;
 
   try {
     await sendFormRequestInvitation(getDb(), {
       organizationId: tenant.organizationId,
-      organizationName: tenant.organizationName,
       recipientEmail: created.request.recipientEmail,
-      recipientName: created.request.recipientName,
       formRequestId: created.request.id,
-      formUrl,
-      expiresAt: created.request.expiresAt,
-      documentCategory: created.request.documentCategory ?? "intake",
     });
   } catch {
     emailFailed = true;
