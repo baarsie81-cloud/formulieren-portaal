@@ -1,19 +1,31 @@
 import "server-only";
 
-import { asc, count, desc } from "drizzle-orm";
+import { and, asc, count, desc, eq } from "drizzle-orm";
 import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES } from "@/server/audit/actions";
 import { writeUserAuditEvent } from "@/server/audit/log";
 import type { TenantContext } from "@/server/auth/tenant";
 import { getDb } from "@/server/db";
 import { isUniqueViolation } from "@/server/db/postgres-errors";
-import { clients } from "@/server/db/schema";
-import { ConflictError, NotFoundError } from "@/server/errors";
+import { clients, formRequests } from "@/server/db/schema";
+import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 import type { ClientInput } from "@/server/clients/schema";
-import { clientIdSchema } from "@/server/clients/schema";
+import {
+  clientIdSchema,
+  PERMANENT_DELETE_CONFIRMATION,
+} from "@/server/clients/schema";
 import {
   activeClientsInOrganization,
+  archivedClientsInOrganization,
   clientInOrganization,
 } from "@/server/clients/scope";
+
+export const CLIENT_HAS_FORM_REQUESTS_MESSAGE =
+  "Deze cliënt kan niet definitief worden verwijderd zolang er formulierverzoeken aan gekoppeld zijn.";
+
+export const CLIENT_NOT_ARCHIVED_MESSAGE =
+  "Alleen gearchiveerde cliënten kunnen definitief worden verwijderd.";
+
+export const CLIENT_DELETE_CONFIRMATION_MESSAGE = `Typ exact ${PERMANENT_DELETE_CONFIRMATION} om te bevestigen.`;
 
 const ACTIVE_EMAIL_CONSTRAINT = "clients_organization_id_email_active_idx";
 
@@ -32,6 +44,14 @@ export async function listClients(tenant: TenantContext) {
     .select()
     .from(clients)
     .where(activeClientsInOrganization(tenant.organizationId))
+    .orderBy(asc(clients.displayName), desc(clients.createdAt));
+}
+
+export async function listArchivedClients(tenant: TenantContext) {
+  return getDb()
+    .select()
+    .from(clients)
+    .where(archivedClientsInOrganization(tenant.organizationId))
     .orderBy(asc(clients.displayName), desc(clients.createdAt));
 }
 
@@ -191,6 +211,121 @@ export async function archiveClient(tenant: TenantContext, clientId: string) {
 
     return client;
   });
+}
+
+
+export async function restoreClient(tenant: TenantContext, clientId: string) {
+  const existing = await getClient(tenant, clientId);
+
+  if (!existing.archivedAt) {
+    return existing;
+  }
+
+  const db = getDb();
+
+  try {
+    return await db.transaction(async (tx) => {
+      const [client] = await tx
+        .update(clients)
+        .set({
+          archivedAt: null,
+        })
+        .where(clientInOrganization(tenant.organizationId, existing.id))
+        .returning();
+
+      if (!client) {
+        throw new NotFoundError("Client not found");
+      }
+
+      await writeUserAuditEvent(tx, {
+        tenant,
+        action: AUDIT_ACTIONS.CLIENT_RESTORED,
+        entityType: AUDIT_ENTITY_TYPES.CLIENT,
+        entityId: client.id,
+      });
+
+      return client;
+    });
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ConflictError) {
+      throw error;
+    }
+
+    if (isUniqueViolation(error, ACTIVE_EMAIL_CONSTRAINT) || isUniqueViolation(error)) {
+      throw new ConflictError("A client with this email already exists");
+    }
+
+    throw error;
+  }
+}
+
+export async function deleteClient(
+  tenant: TenantContext,
+  clientId: string,
+  confirmation: string,
+) {
+  if (confirmation !== PERMANENT_DELETE_CONFIRMATION) {
+    throw new ValidationError(CLIENT_DELETE_CONFIRMATION_MESSAGE);
+  }
+
+  const existing = await getClient(tenant, clientId);
+
+  if (!existing.archivedAt) {
+    throw new ConflictError(CLIENT_NOT_ARCHIVED_MESSAGE);
+  }
+
+  const linkedRequestCount = await countFormRequestsForClient(
+    tenant.organizationId,
+    existing.id,
+  );
+
+  if (linkedRequestCount > 0) {
+    throw new ConflictError(CLIENT_HAS_FORM_REQUESTS_MESSAGE);
+  }
+
+  const db = getDb();
+
+  return db.transaction(async (tx) => {
+    await writeUserAuditEvent(tx, {
+      tenant,
+      action: AUDIT_ACTIONS.CLIENT_DELETED,
+      entityType: AUDIT_ENTITY_TYPES.CLIENT,
+      entityId: existing.id,
+      metadata: {
+        displayName: existing.displayName,
+        email: existing.email,
+        confirmation: "typed",
+      },
+    });
+
+    const [deleted] = await tx
+      .delete(clients)
+      .where(clientInOrganization(tenant.organizationId, existing.id))
+      .returning({ id: clients.id });
+
+    if (!deleted) {
+      throw new NotFoundError("Client not found");
+    }
+
+    return { id: deleted.id };
+  });
+}
+
+async function countFormRequestsForClient(
+  organizationId: string,
+  clientId: string,
+): Promise<number> {
+  const [row] = await getDb()
+    .select({ value: count() })
+    .from(formRequests)
+    .where(
+      and(
+        eq(formRequests.organizationId, organizationId),
+        eq(formRequests.clientId, clientId),
+      ),
+    );
+
+  return row?.value ?? 0;
 }
 
 function changedClientFields(

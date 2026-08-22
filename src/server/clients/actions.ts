@@ -4,17 +4,24 @@ import { notFound, redirect } from "next/navigation";
 import { requireDashboardContext } from "@/server/auth/guard";
 import {
   parseClientInput,
+  parsePermanentDeleteConfirmation,
   readClientFormFields,
   clientIdSchema,
 } from "@/server/clients/schema";
 import {
   archiveClient,
   createClient,
+  deleteClient,
+  restoreClient,
   updateClient,
 } from "@/server/clients/service";
-import { ConflictError, NotFoundError } from "@/server/errors";
+import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 
 export type ClientFormState = {
+  error: string | null;
+};
+
+export type ClientDeleteState = {
   error: string | null;
 };
 
@@ -80,6 +87,58 @@ export async function archiveClientAction(formData: FormData) {
   }
 
   redirect("/dashboard/clients");
+}
+
+export async function restoreClientAction(formData: FormData) {
+  const tenant = await requireDashboardContext();
+  const clientId = parseClientIdOrNotFound(formData.get("clientId"));
+
+  try {
+    await restoreClient(tenant, clientId);
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      notFound();
+    }
+
+    throw error;
+  }
+
+  redirect("/dashboard/clients");
+}
+
+export async function deleteClientAction(
+  _state: ClientDeleteState,
+  formData: FormData,
+): Promise<ClientDeleteState> {
+  const tenant = await requireDashboardContext();
+  const clientId = parseClientIdOrNotFound(formData.get("clientId"));
+  const confirmation = parsePermanentDeleteConfirmation(
+    formData.get("confirmation"),
+  );
+
+  if (!confirmation.success) {
+    return { error: confirmation.error };
+  }
+
+  try {
+    await deleteClient(tenant, clientId, confirmation.data);
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      notFound();
+    }
+
+    if (error instanceof ValidationError) {
+      return { error: error.message };
+    }
+
+    if (error instanceof ConflictError) {
+      return { error: error.message };
+    }
+
+    throw error;
+  }
+
+  redirect("/dashboard/clients?view=archived");
 }
 
 function parseClientIdOrNotFound(value: FormDataEntryValue | null): string {

@@ -2,6 +2,8 @@ export const AUDIT_ACTIONS = {
   CLIENT_CREATED: "client.created",
   CLIENT_UPDATED: "client.updated",
   CLIENT_ARCHIVED: "client.archived",
+  CLIENT_RESTORED: "client.restored",
+  CLIENT_DELETED: "client.deleted",
   TEMPLATE_CREATED: "template.created",
   TEMPLATE_UPDATED: "template.updated",
   TEMPLATE_ARCHIVED: "template.archived",
