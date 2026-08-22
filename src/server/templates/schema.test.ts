@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   parseFieldMappings,
+  parsePermanentDeleteConfirmation,
   parseTemplateMetadata,
+  PERMANENT_DELETE_CONFIRMATION,
   readFieldMappings,
   templateIdSchema,
 } from "@/server/templates/schema";
@@ -207,5 +209,20 @@ describe("templateIdSchema", () => {
       true,
     );
     expect(templateIdSchema.safeParse("not-a-uuid").success).toBe(false);
+  });
+});
+
+describe("parsePermanentDeleteConfirmation", () => {
+  it("accepts exact VERWIJDEREN", () => {
+    expect(parsePermanentDeleteConfirmation(PERMANENT_DELETE_CONFIRMATION)).toEqual({
+      success: true,
+      data: PERMANENT_DELETE_CONFIRMATION,
+    });
+  });
+
+  it("rejects wrong casing and empty values", () => {
+    for (const value of ["verwijderen", "Verwijderen", "", null]) {
+      expect(parsePermanentDeleteConfirmation(value).success).toBe(false);
+    }
   });
 });

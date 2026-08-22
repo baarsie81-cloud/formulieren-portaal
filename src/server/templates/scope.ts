@@ -25,3 +25,11 @@ export function fieldsInTemplate(organizationId: string, templateId: string) {
 export function fieldInOrganization(organizationId: string, fieldId: string) {
   return and(eq(documentFields.organizationId, organizationId), eq(documentFields.id, fieldId));
 }
+
+export function archivedTemplatesInOrganization(organizationId: string) {
+  return and(
+    eq(documentTemplates.organizationId, organizationId),
+    eq(documentTemplates.status, "archived"),
+  );
+}
+

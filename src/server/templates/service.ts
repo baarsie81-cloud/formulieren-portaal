@@ -6,7 +6,7 @@ import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES } from "@/server/audit/actions";
 import { writeUserAuditEvent } from "@/server/audit/log";
 import type { TenantContext } from "@/server/auth/tenant";
 import { getDb } from "@/server/db";
-import { documentFields, documentTemplates } from "@/server/db/schema";
+import { documentFields, documentTemplates, formDocuments } from "@/server/db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 import { extractPdfFields } from "@/server/pdf/fields";
 import { sha256Hex } from "@/server/pdf/hash";
@@ -19,14 +19,26 @@ import {
 } from "@/server/storage/blob";
 import { assertTemplateBlobKey, templatePdfBlobKey } from "@/server/storage/paths";
 import type { FieldMappingInput, TemplateMetadataInput } from "@/server/templates/schema";
-import { templateIdSchema } from "@/server/templates/schema";
+import {
+  PERMANENT_DELETE_CONFIRMATION,
+  templateIdSchema,
+} from "@/server/templates/schema";
 import {
   activeTemplatesInOrganization,
+  archivedTemplatesInOrganization,
   fieldsInTemplate,
   templateInOrganization,
 } from "@/server/templates/scope";
 
 export const NO_ACROFORM_FIELDS_MESSAGE = "PDF has no AcroForm fields";
+
+export const TEMPLATE_HAS_FORM_DOCUMENTS_MESSAGE =
+  "Dit sjabloon kan niet definitief worden verwijderd zolang er formulierdocumenten aan gekoppeld zijn.";
+
+export const TEMPLATE_NOT_ARCHIVED_MESSAGE =
+  "Alleen gearchiveerde sjablonen kunnen definitief worden verwijderd.";
+
+export const TEMPLATE_DELETE_CONFIRMATION_MESSAGE = `Typ exact ${PERMANENT_DELETE_CONFIRMATION} om te bevestigen.`;
 
 function parseTemplateId(templateId: string): string {
   const parsed = templateIdSchema.safeParse(templateId);
@@ -43,6 +55,14 @@ export async function listTemplates(tenant: TenantContext) {
     .select()
     .from(documentTemplates)
     .where(activeTemplatesInOrganization(tenant.organizationId))
+    .orderBy(asc(documentTemplates.name), desc(documentTemplates.createdAt));
+}
+
+export async function listArchivedTemplates(tenant: TenantContext) {
+  return getDb()
+    .select()
+    .from(documentTemplates)
+    .where(archivedTemplatesInOrganization(tenant.organizationId))
     .orderBy(asc(documentTemplates.name), desc(documentTemplates.createdAt));
 }
 
@@ -335,6 +355,113 @@ export async function readTemplatePdfBytes(tenant: TenantContext, templateId: st
   assertPdfSha256(bytes, template.sha256);
 
   return { template, bytes };
+}
+
+
+export async function restoreTemplate(tenant: TenantContext, templateId: string) {
+  const existing = await getTemplate(tenant, templateId);
+
+  if (existing.status === "active") {
+    return existing;
+  }
+
+  return getDb().transaction(async (tx) => {
+    const [template] = await tx
+      .update(documentTemplates)
+      .set({
+        status: "active",
+      })
+      .where(templateInOrganization(tenant.organizationId, existing.id))
+      .returning();
+
+    if (!template) {
+      throw new NotFoundError("Template not found");
+    }
+
+    await writeUserAuditEvent(tx, {
+      tenant,
+      action: AUDIT_ACTIONS.TEMPLATE_RESTORED,
+      entityType: AUDIT_ENTITY_TYPES.DOCUMENT_TEMPLATE,
+      entityId: template.id,
+    });
+
+    return template;
+  });
+}
+
+export async function deleteTemplate(
+  tenant: TenantContext,
+  templateId: string,
+  confirmation: string,
+) {
+  if (confirmation !== PERMANENT_DELETE_CONFIRMATION) {
+    throw new ValidationError(TEMPLATE_DELETE_CONFIRMATION_MESSAGE);
+  }
+
+  const existing = await getTemplate(tenant, templateId);
+
+  if (existing.status !== "archived") {
+    throw new ConflictError(TEMPLATE_NOT_ARCHIVED_MESSAGE);
+  }
+
+  const linkedDocumentCount = await countFormDocumentsForTemplate(
+    tenant.organizationId,
+    existing.id,
+  );
+
+  if (linkedDocumentCount > 0) {
+    throw new ConflictError(TEMPLATE_HAS_FORM_DOCUMENTS_MESSAGE);
+  }
+
+  const blobKey = existing.blobKey;
+
+  await getDb().transaction(async (tx) => {
+    await writeUserAuditEvent(tx, {
+      tenant,
+      action: AUDIT_ACTIONS.TEMPLATE_DELETED,
+      entityType: AUDIT_ENTITY_TYPES.DOCUMENT_TEMPLATE,
+      entityId: existing.id,
+      metadata: {
+        name: existing.name,
+        sha256: existing.sha256,
+        confirmation: "typed",
+      },
+    });
+
+    await tx
+      .delete(documentFields)
+      .where(fieldsInTemplate(tenant.organizationId, existing.id));
+
+    const [deleted] = await tx
+      .delete(documentTemplates)
+      .where(templateInOrganization(tenant.organizationId, existing.id))
+      .returning({ id: documentTemplates.id });
+
+    if (!deleted) {
+      throw new NotFoundError("Template not found");
+    }
+  });
+
+  await deletePrivatePdf(blobKey).catch(() => undefined);
+
+  return { id: existing.id };
+}
+
+async function countFormDocumentsForTemplate(
+  organizationId: string,
+  templateId: string,
+): Promise<number> {
+  const [row] = await getDb()
+    .select({ value: count() })
+    .from(formDocuments)
+    .where(
+      and(
+        eq(formDocuments.organizationId, organizationId),
+        eq(formDocuments.documentTemplateId, templateId),
+      ),
+    );
+
+  return row?.value ?? 0;
 }
 
 function assertActiveTemplate(template: { status: string }) {

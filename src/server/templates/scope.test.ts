@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activeTemplatesInOrganization,
+  archivedTemplatesInOrganization,
   fieldInOrganization,
   fieldsInTemplate,
   templateInOrganization,
@@ -25,6 +26,15 @@ describe("template query scope", () => {
 
     expect(clause).toContain(ORGANIZATION_ID);
     expect(clause).toContain("active");
+    expect(clause).not.toContain(TEMPLATE_ID);
+    expect(clause).not.toContain(OTHER_ORGANIZATION_ID);
+  });
+
+  it("lists archived templates only within one organization", () => {
+    const clause = sqlValues(archivedTemplatesInOrganization(ORGANIZATION_ID));
+
+    expect(clause).toContain(ORGANIZATION_ID);
+    expect(clause).toContain("archived");
     expect(clause).not.toContain(TEMPLATE_ID);
     expect(clause).not.toContain(OTHER_ORGANIZATION_ID);
   });

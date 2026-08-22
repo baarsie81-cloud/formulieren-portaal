@@ -7,6 +7,8 @@ export const AUDIT_ACTIONS = {
   TEMPLATE_CREATED: "template.created",
   TEMPLATE_UPDATED: "template.updated",
   TEMPLATE_ARCHIVED: "template.archived",
+  TEMPLATE_RESTORED: "template.restored",
+  TEMPLATE_DELETED: "template.deleted",
   TEMPLATE_FIELDS_UPDATED: "template.fields_updated",
   FORM_REQUEST_CREATED: "form_request.created",
   FORM_REQUEST_CANCELLED: "form_request.cancelled",

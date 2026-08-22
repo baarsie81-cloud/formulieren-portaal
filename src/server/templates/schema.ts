@@ -14,6 +14,33 @@ const optionalNullableText = (max: number) =>
 
 export const templateIdSchema = z.uuid();
 
+export const PERMANENT_DELETE_CONFIRMATION = "VERWIJDEREN";
+
+export const permanentDeleteConfirmationSchema = z.literal(
+  PERMANENT_DELETE_CONFIRMATION,
+);
+
+export function parsePermanentDeleteConfirmation(
+  value: FormDataEntryValue | null,
+): { success: true; data: typeof PERMANENT_DELETE_CONFIRMATION } | {
+  success: false;
+  error: string;
+} {
+  const parsed = permanentDeleteConfirmationSchema.safeParse(
+    typeof value === "string" ? value : "",
+  );
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: `Typ exact ${PERMANENT_DELETE_CONFIRMATION} om te bevestigen.`,
+    };
+  }
+
+  return { success: true, data: parsed.data };
+}
+
+
 export const templateMetadataSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: optionalNullableText(2000),

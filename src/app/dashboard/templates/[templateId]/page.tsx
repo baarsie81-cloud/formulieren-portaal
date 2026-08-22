@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArchiveTemplateButton } from "@/components/archive-template-button";
+import { DeleteTemplateButton } from "@/components/delete-template-button";
+import { RestoreTemplateButton } from "@/components/restore-template-button";
 import { TemplateFieldsForm } from "@/components/template-fields-form";
 import { TemplateMetadataForm } from "@/components/template-metadata-form";
 import { formatDateTime } from "@/lib/datetime";
@@ -35,7 +37,10 @@ export default async function TemplateDetailPage({
     <section className="flex flex-col gap-8">
       <div>
         <p className="text-sm text-neutral-500">
-          <Link href="/dashboard/templates" className="hover:underline">
+          <Link
+            href={archived ? "/dashboard/templates?view=archived" : "/dashboard/templates"}
+            className="hover:underline"
+          >
             Sjablonen
           </Link>
         </p>
@@ -61,9 +66,18 @@ export default async function TemplateDetailPage({
       </div>
 
       {archived ? (
-        <p className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
-          Dit sjabloon is gearchiveerd en kan niet meer worden gewijzigd.
-        </p>
+        <>
+          <p className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
+            Dit sjabloon is gearchiveerd en kan niet meer worden gewijzigd.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <RestoreTemplateButton templateId={template.id} />
+          </div>
+          <DeleteTemplateButton
+            templateId={template.id}
+            templateName={template.name}
+          />
+        </>
       ) : (
         <>
           <TemplateMetadataForm
