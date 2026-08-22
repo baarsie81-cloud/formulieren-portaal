@@ -188,6 +188,7 @@ export async function createFormRequest(
         recipientEmail: client.email,
         status: "sent",
         expiresAt,
+        documentCategory: template.category,
       })
       .returning();
 

@@ -23,7 +23,44 @@ const invitationInput = {
   formRequestId: "22222222-2222-4222-8222-222222222222",
   formUrl: "https://formulierendesk.nl/f/abc123token",
   expiresAt: new Date("2026-09-02T10:00:00.000Z"),
+  documentCategory: "intake" as const,
 };
+
+function createInvitationDb() {
+  const requestSelect = {
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({
+        limit: vi.fn().mockResolvedValue([
+          {
+            invitationSubjectSnapshot: null,
+            invitationBodySnapshot: null,
+            invitationSentAt: null,
+          },
+        ]),
+      })),
+    })),
+  };
+  const templateSelect = {
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({
+        limit: vi.fn().mockResolvedValue([]),
+      })),
+    })),
+  };
+
+  return {
+    insert: vi.fn(),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue(undefined),
+      })),
+    })),
+    select: vi
+      .fn()
+      .mockReturnValueOnce(requestSelect)
+      .mockReturnValueOnce(templateSelect),
+  } as unknown as Pick<Database, "insert" | "update" | "select">;
+}
 
 describe("buildFormRequestInvitationEmail", () => {
   it("builds Dutch invitation content with organization name and secure link", () => {
@@ -54,7 +91,7 @@ describe("buildFormRequestInvitationEmail", () => {
 });
 
 describe("sendFormRequestInvitation", () => {
-  const db = { insert: vi.fn() } as unknown as Pick<Database, "insert">;
+  const db = createInvitationDb();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -75,13 +112,15 @@ describe("sendFormRequestInvitation", () => {
     const result = await sendFormRequestInvitation(db, invitationInput);
 
     expect(result).toEqual({ messageId: "msg_invite" });
-    expect(sendEmail).toHaveBeenCalledWith(db, {
-      organizationId: invitationInput.organizationId,
-      to: "client@example.com",
-      subject: "Formulier van Praktijk De Linde",
-      html: expect.stringContaining("https://formulierendesk.nl/f/abc123token"),
-      text: expect.stringContaining("https://formulierendesk.nl/f/abc123token"),
-      formRequestId: invitationInput.formRequestId,
-    });
+    expect(sendEmail).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        organizationId: invitationInput.organizationId,
+        to: "client@example.com",
+        subject: "Formulier van Praktijk De Linde",
+        formRequestId: invitationInput.formRequestId,
+        emailKind: "invitation",
+      }),
+    );
   });
 });

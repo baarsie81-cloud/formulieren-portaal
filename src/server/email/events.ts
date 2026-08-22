@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { EmailKind } from "@/lib/constants";
 import type { Database } from "@/server/db";
 import { emailEvents } from "@/server/db/schema";
 
@@ -9,6 +10,7 @@ export type LogEmailSentEventInput = {
   recipientEmail: string;
   formRequestId?: string;
   reminderDeliveryId?: string;
+  emailKind?: EmailKind;
   occurredAt?: Date;
 };
 
@@ -22,6 +24,7 @@ export async function logEmailSentEvent(
     reminderDeliveryId: input.reminderDeliveryId,
     providerMessageId: input.providerMessageId,
     eventType: "sent",
+    emailKind: input.emailKind,
     recipientEmail: input.recipientEmail,
     occurredAt: input.occurredAt ?? new Date(),
   });

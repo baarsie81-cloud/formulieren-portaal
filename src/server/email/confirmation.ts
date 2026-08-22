@@ -1,10 +1,19 @@
 import "server-only";
 
 import { and, eq } from "drizzle-orm";
+import type { DocumentCategory } from "@/lib/constants";
 import type { Database } from "@/server/db";
 import { formRequests, organizations, secureTokens, users } from "@/server/db/schema";
 import { sendEmail, isEmailConfigured } from "@/server/email/send";
 import type { SendEmailResult } from "@/server/email/schema";
+import {
+  buildConfirmationTemplateContext,
+  confirmationTemplateKindForCategory,
+  getDefaultEmailTemplate,
+  renderEmailTemplate,
+  renderedEmailFromSnapshot,
+  resolveOrganizationEmailTemplate,
+} from "@/server/email/templates";
 import { parseRawToken } from "@/server/forms/schema";
 import { hashSecret } from "@/server/forms/token";
 
@@ -15,6 +24,10 @@ export type FormCompletionEmailContext = {
   recipientName: string;
   formRequestId: string;
   createdByUserId: string;
+  documentCategory: DocumentCategory;
+  clientConfirmationSentAt: Date | null;
+  confirmationSubjectSnapshot: string | null;
+  confirmationBodySnapshot: string | null;
 };
 
 export type FormCompletionClientEmailInput = {
@@ -23,6 +36,10 @@ export type FormCompletionClientEmailInput = {
   recipientEmail: string;
   recipientName: string;
   formRequestId: string;
+  documentCategory: DocumentCategory;
+  clientConfirmationSentAt: Date | null;
+  confirmationSubjectSnapshot: string | null;
+  confirmationBodySnapshot: string | null;
 };
 
 export type FormCompletionStaffEmailInput = {
@@ -59,6 +76,10 @@ export async function loadFormCompletionEmailContext(
       recipientName: formRequests.recipientName,
       recipientEmail: formRequests.recipientEmail,
       createdByUserId: formRequests.createdByUserId,
+      documentCategory: formRequests.documentCategory,
+      clientConfirmationSentAt: formRequests.clientConfirmationSentAt,
+      confirmationSubjectSnapshot: formRequests.confirmationSubjectSnapshot,
+      confirmationBodySnapshot: formRequests.confirmationBodySnapshot,
       organizationName: organizations.name,
     })
     .from(secureTokens)
@@ -84,6 +105,10 @@ export async function loadFormCompletionEmailContext(
     recipientName: row.recipientName,
     formRequestId: row.formRequestId,
     createdByUserId: row.createdByUserId,
+    documentCategory: row.documentCategory ?? "intake",
+    clientConfirmationSentAt: row.clientConfirmationSentAt,
+    confirmationSubjectSnapshot: row.confirmationSubjectSnapshot,
+    confirmationBodySnapshot: row.confirmationBodySnapshot,
   };
 }
 
@@ -100,29 +125,18 @@ async function loadStaffEmail(
   return row?.email ?? null;
 }
 
-export function buildFormCompletionClientEmail(input: FormCompletionClientEmailInput) {
-  const organizationName = input.organizationName.trim();
-  const recipientName = input.recipientName.trim();
-  const subject = `Bevestiging ondertekening — ${organizationName}`;
+export function buildFormCompletionClientEmail(
+  input: Pick<
+    FormCompletionClientEmailInput,
+    "organizationName" | "recipientName" | "documentCategory"
+  >,
+) {
+  const templateKind = confirmationTemplateKindForCategory(input.documentCategory);
 
-  const text = [
-    `Beste ${recipientName},`,
-    "",
-    `${organizationName} bevestigt dat uw formulier succesvol is ontvangen en ondertekend.`,
-    "U hoeft verder niets te doen.",
-    "",
-    "Met vriendelijke groet,",
-    organizationName,
-  ].join("\n");
-
-  const html = [
-    `<p>Beste ${escapeHtml(recipientName)},</p>`,
-    `<p>${escapeHtml(organizationName)} bevestigt dat uw formulier succesvol is ontvangen en ondertekend.</p>`,
-    "<p>U hoeft verder niets te doen.</p>",
-    `<p>Met vriendelijke groet,<br>${escapeHtml(organizationName)}</p>`,
-  ].join("");
-
-  return { subject, html, text };
+  return renderEmailTemplate(
+    getDefaultEmailTemplate(templateKind),
+    buildConfirmationTemplateContext(input),
+  );
 }
 
 export function buildFormCompletionStaffEmail(input: FormCompletionStaffEmailInput) {
@@ -149,24 +163,91 @@ export function buildFormCompletionStaffEmail(input: FormCompletionStaffEmailInp
   return { subject, html, text };
 }
 
+async function persistConfirmationSnapshots(
+  db: Pick<Database, "update">,
+  formRequestId: string,
+  snapshots: {
+    kind: ReturnType<typeof confirmationTemplateKindForCategory>;
+    subject: string;
+    text: string;
+  },
+) {
+  await db
+    .update(formRequests)
+    .set({
+      confirmationKindSnapshot: snapshots.kind,
+      confirmationSubjectSnapshot: snapshots.subject,
+      confirmationBodySnapshot: snapshots.text,
+    })
+    .where(eq(formRequests.id, formRequestId));
+}
+
+async function markClientConfirmationSent(
+  db: Pick<Database, "update">,
+  formRequestId: string,
+  sentAt: Date,
+) {
+  await db
+    .update(formRequests)
+    .set({ clientConfirmationSentAt: sentAt })
+    .where(eq(formRequests.id, formRequestId));
+}
+
 export async function sendFormCompletionClientEmail(
-  db: Pick<Database, "insert">,
+  db: Pick<Database, "insert" | "update" | "select">,
   input: FormCompletionClientEmailInput,
 ): Promise<SendEmailResult | null> {
   if (!isEmailConfigured()) {
     return null;
   }
 
-  const content = buildFormCompletionClientEmail(input);
+  if (input.clientConfirmationSentAt) {
+    return null;
+  }
 
-  return sendEmail(db, {
+  const content =
+    input.confirmationSubjectSnapshot && input.confirmationBodySnapshot
+      ? renderedEmailFromSnapshot(
+          input.confirmationSubjectSnapshot,
+          input.confirmationBodySnapshot,
+        )
+      : await (async () => {
+          const templateKind = confirmationTemplateKindForCategory(
+            input.documentCategory,
+          );
+          const template = await resolveOrganizationEmailTemplate(
+            db,
+            input.organizationId,
+            templateKind,
+          );
+          const rendered = renderEmailTemplate(
+            template,
+            buildConfirmationTemplateContext(input),
+          );
+
+          await persistConfirmationSnapshots(db, input.formRequestId, {
+            kind: templateKind,
+            subject: rendered.subject,
+            text: rendered.text,
+          });
+
+          return rendered;
+        })();
+
+  const sentAt = new Date();
+  const delivery = await sendEmail(db, {
     organizationId: input.organizationId,
     to: input.recipientEmail,
     subject: content.subject,
     html: content.html,
     text: content.text,
     formRequestId: input.formRequestId,
+    emailKind: "confirmation",
   });
+
+  await markClientConfirmationSent(db, input.formRequestId, sentAt);
+
+  return delivery;
 }
 
 export async function sendFormCompletionStaffEmail(
@@ -190,7 +271,7 @@ export async function sendFormCompletionStaffEmail(
 }
 
 export async function sendFormCompletionNotifications(
-  db: Pick<Database, "insert" | "select">,
+  db: Pick<Database, "insert" | "update" | "select">,
   input: FormCompletionEmailContext & { dashboardOrigin: string },
 ): Promise<void> {
   if (!isEmailConfigured()) {
@@ -205,6 +286,10 @@ export async function sendFormCompletionNotifications(
     recipientEmail: input.recipientEmail,
     recipientName: input.recipientName,
     formRequestId: input.formRequestId,
+    documentCategory: input.documentCategory,
+    clientConfirmationSentAt: input.clientConfirmationSentAt,
+    confirmationSubjectSnapshot: input.confirmationSubjectSnapshot,
+    confirmationBodySnapshot: input.confirmationBodySnapshot,
   });
 
   const staffEmail = await loadStaffEmail(db, input.createdByUserId);

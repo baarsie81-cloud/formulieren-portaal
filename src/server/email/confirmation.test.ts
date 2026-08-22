@@ -24,7 +24,41 @@ const clientInput = {
   recipientEmail: "client@example.com",
   recipientName: "Ada Lovelace",
   formRequestId: "22222222-2222-4222-8222-222222222222",
+  documentCategory: "intake" as const,
+  clientConfirmationSentAt: null,
+  confirmationSubjectSnapshot: null,
+  confirmationBodySnapshot: null,
 };
+
+function createConfirmationDb() {
+  const staffSelect = {
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({
+        limit: vi.fn().mockResolvedValue([{ email: "staff@praktijk.nl" }]),
+      })),
+    })),
+  };
+  const templateSelect = {
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({
+        limit: vi.fn().mockResolvedValue([]),
+      })),
+    })),
+  };
+
+  return {
+    insert: vi.fn(),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue(undefined),
+      })),
+    })),
+    select: vi
+      .fn()
+      .mockReturnValueOnce(templateSelect)
+      .mockReturnValue(staffSelect),
+  } as unknown as Pick<Database, "insert" | "update" | "select">;
+}
 
 describe("buildFormCompletionClientEmail", () => {
   it("builds Dutch client confirmation without form content", () => {
@@ -80,7 +114,7 @@ describe("buildFormCompletionStaffEmail", () => {
 });
 
 describe("sendFormCompletionClientEmail", () => {
-  const db = { insert: vi.fn() } as unknown as Pick<Database, "insert">;
+  const db = createConfirmationDb();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -91,14 +125,16 @@ describe("sendFormCompletionClientEmail", () => {
   it("sends to the client recipient", async () => {
     await sendFormCompletionClientEmail(db, clientInput);
 
-    expect(sendEmail).toHaveBeenCalledWith(db, {
-      organizationId: clientInput.organizationId,
-      to: "client@example.com",
-      subject: "Bevestiging ondertekening — Praktijk De Linde",
-      html: expect.stringContaining("ontvangen en ondertekend"),
-      text: expect.stringContaining("ontvangen en ondertekend"),
-      formRequestId: clientInput.formRequestId,
-    });
+    expect(sendEmail).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        organizationId: clientInput.organizationId,
+        to: "client@example.com",
+        subject: "Bevestiging ondertekening — Praktijk De Linde",
+        formRequestId: clientInput.formRequestId,
+        emailKind: "confirmation",
+      }),
+    );
   });
 });
 
@@ -132,16 +168,7 @@ describe("sendFormCompletionStaffEmail", () => {
 });
 
 describe("sendFormCompletionNotifications", () => {
-  const db = {
-    insert: vi.fn(),
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn().mockResolvedValue([{ email: "staff@praktijk.nl" }]),
-        })),
-      })),
-    })),
-  } as unknown as Pick<Database, "insert" | "select">;
+  const db = createConfirmationDb();
 
   beforeEach(() => {
     vi.clearAllMocks();

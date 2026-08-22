@@ -55,6 +55,7 @@ export async function createFormRequestAction(
       formRequestId: created.request.id,
       formUrl,
       expiresAt: created.request.expiresAt,
+      documentCategory: created.request.documentCategory ?? "intake",
     });
   } catch {
     emailFailed = true;
