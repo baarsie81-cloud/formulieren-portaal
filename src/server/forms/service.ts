@@ -8,17 +8,30 @@ import type { TenantContext } from "@/server/auth/tenant";
 import { getClient } from "@/server/clients/service";
 import { getDb } from "@/server/db";
 import {
+  acceptances,
+  auditEvents,
   documentTemplates,
+  emailEvents,
   formDocuments,
   formRequests,
   formSessions,
   organizations,
+  reminderDeliveries,
   secureTokens,
+  signatures,
 } from "@/server/db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 import type { CreateFormRequestInput } from "@/server/forms/schema";
-import { formRequestIdSchema } from "@/server/forms/schema";
-import { documentsInRequest, requestInOrganization } from "@/server/forms/scope";
+import {
+  formRequestIdSchema,
+  PERMANENT_DELETE_CONFIRMATION,
+} from "@/server/forms/schema";
+import {
+  activeRequestsInOrganization,
+  archivedRequestsInOrganization,
+  documentsInRequest,
+  requestInOrganization,
+} from "@/server/forms/scope";
 import { toFieldsSchemaSnapshot } from "@/server/forms/snapshot";
 import { buildRequestMailSnapshotsForCreate } from "@/server/forms/mail-config";
 import { getPublicOrigin } from "@/server/forms/request-meta";
@@ -29,6 +42,7 @@ import {
 import { generateRawSecret, hashSecret } from "@/server/forms/token";
 import { extractPdfPageSizes } from "@/server/pdf/fields";
 import { getTemplate, listTemplateFields, readTemplatePdfBytes } from "@/server/templates/service";
+import { deletePrivatePdf } from "@/server/storage/blob";
 
 function parseRequestId(requestId: string): string {
   const parsed = formRequestIdSchema.safeParse(requestId);
@@ -40,11 +54,17 @@ function parseRequestId(requestId: string): string {
   return parsed.data;
 }
 
+
+export const FORM_REQUEST_NOT_ARCHIVED_MESSAGE =
+  "Alleen gearchiveerde verzoeken kunnen definitief worden verwijderd.";
+
+export const FORM_REQUEST_DELETE_CONFIRMATION_MESSAGE = `Typ exact ${PERMANENT_DELETE_CONFIRMATION} om te bevestigen.`;
+
 export async function countFormRequests(tenant: TenantContext) {
   const [row] = await getDb()
     .select({ value: count() })
     .from(formRequests)
-    .where(eq(formRequests.organizationId, tenant.organizationId));
+    .where(activeRequestsInOrganization(tenant.organizationId));
 
   return row?.value ?? 0;
 }
@@ -54,6 +74,7 @@ export async function listFormRequests(tenant: TenantContext) {
     .select({
       request: formRequests,
       templateName: documentTemplates.name,
+      documentStatus: formDocuments.status,
     })
     .from(formRequests)
     .innerJoin(
@@ -70,13 +91,49 @@ export async function listFormRequests(tenant: TenantContext) {
         eq(documentTemplates.id, formDocuments.documentTemplateId),
       ),
     )
-    .where(eq(formRequests.organizationId, tenant.organizationId))
+    .where(activeRequestsInOrganization(tenant.organizationId))
     .orderBy(desc(formRequests.createdAt), asc(formDocuments.sortOrder));
 
   return rows.map((row) => ({
     ...row.request,
     templateName: row.templateName,
+    documentStatus: row.documentStatus,
     status: effectiveRequestStatus(row.request.status, row.request.expiresAt),
+    isFinalized: row.documentStatus === "finalized",
+  }));
+}
+
+export async function listArchivedFormRequests(tenant: TenantContext) {
+  const rows = await getDb()
+    .select({
+      request: formRequests,
+      templateName: documentTemplates.name,
+      documentStatus: formDocuments.status,
+    })
+    .from(formRequests)
+    .innerJoin(
+      formDocuments,
+      and(
+        eq(formDocuments.organizationId, formRequests.organizationId),
+        eq(formDocuments.formRequestId, formRequests.id),
+      ),
+    )
+    .innerJoin(
+      documentTemplates,
+      and(
+        eq(documentTemplates.organizationId, formRequests.organizationId),
+        eq(documentTemplates.id, formDocuments.documentTemplateId),
+      ),
+    )
+    .where(archivedRequestsInOrganization(tenant.organizationId))
+    .orderBy(desc(formRequests.createdAt), asc(formDocuments.sortOrder));
+
+  return rows.map((row) => ({
+    ...row.request,
+    templateName: row.templateName,
+    documentStatus: row.documentStatus,
+    status: effectiveRequestStatus(row.request.status, row.request.expiresAt),
+    isFinalized: row.documentStatus === "finalized",
   }));
 }
 
@@ -137,16 +194,26 @@ export async function getFormRequest(tenant: TenantContext, requestId: string) {
   const fillSubmitted = await hasSubmittedFill(tenant.organizationId, row.request.id);
   const isFinalized = row.document.status === "finalized";
 
+  const isArchived = row.request.archivedAt != null;
+
   return {
     request: { ...row.request, status },
     document: row.document,
     templateName: row.templateName,
     organizationName: row.organizationName,
-    hasActiveToken: Boolean(activeToken) && status !== "expired" && status !== "cancelled",
+    hasActiveToken:
+      Boolean(activeToken) &&
+      !isArchived &&
+      status !== "expired" &&
+      status !== "cancelled",
     fillSubmitted,
     isFinalized,
-    canCancel: isWritableRequestStatus(status) && !isFinalized,
-    canRotateToken: isWritableRequestStatus(status) && !isFinalized,
+    isArchived,
+    canArchive: !isArchived,
+    canRestore: isArchived,
+    canDelete: isArchived,
+    canCancel: !isArchived && isWritableRequestStatus(status) && !isFinalized,
+    canRotateToken: !isArchived && isWritableRequestStatus(status) && !isFinalized,
   };
 }
 
@@ -337,6 +404,319 @@ export async function rotateFormRequestToken(tenant: TenantContext, requestId: s
   });
 
   return { requestId: existing.request.id, rawToken };
+}
+
+
+export async function archiveFormRequest(tenant: TenantContext, requestId: string) {
+  const existing = await getFormRequest(tenant, requestId);
+
+  if (existing.request.archivedAt) {
+    return existing.request;
+  }
+
+  const now = new Date();
+
+  return getDb().transaction(async (tx) => {
+    const [request] = await tx
+      .update(formRequests)
+      .set({ archivedAt: now })
+      .where(requestInOrganization(tenant.organizationId, existing.request.id))
+      .returning();
+
+    if (!request) {
+      throw new NotFoundError("Form request not found");
+    }
+
+    await revokeActiveTokensAndSessions(
+      tx,
+      tenant.organizationId,
+      existing.request.id,
+      now,
+    );
+
+    await writeUserAuditEvent(tx, {
+      tenant,
+      action: AUDIT_ACTIONS.FORM_REQUEST_ARCHIVED,
+      entityType: AUDIT_ENTITY_TYPES.FORM_REQUEST,
+      entityId: request.id,
+      formRequestId: request.id,
+      metadata: {
+        status: request.status,
+        documentStatus: existing.document.status,
+      },
+    });
+
+    return request;
+  });
+}
+
+export async function restoreFormRequest(tenant: TenantContext, requestId: string) {
+  const existing = await getFormRequest(tenant, requestId);
+
+  if (!existing.request.archivedAt) {
+    return existing.request;
+  }
+
+  return getDb().transaction(async (tx) => {
+    const [request] = await tx
+      .update(formRequests)
+      .set({ archivedAt: null })
+      .where(requestInOrganization(tenant.organizationId, existing.request.id))
+      .returning();
+
+    if (!request) {
+      throw new NotFoundError("Form request not found");
+    }
+
+    await writeUserAuditEvent(tx, {
+      tenant,
+      action: AUDIT_ACTIONS.FORM_REQUEST_RESTORED,
+      entityType: AUDIT_ENTITY_TYPES.FORM_REQUEST,
+      entityId: request.id,
+      formRequestId: request.id,
+      metadata: {
+        status: request.status,
+        documentStatus: existing.document.status,
+      },
+    });
+
+    return request;
+  });
+}
+
+export async function deleteFormRequest(
+  tenant: TenantContext,
+  requestId: string,
+  confirmation: string,
+) {
+  if (confirmation !== PERMANENT_DELETE_CONFIRMATION) {
+    throw new ValidationError(FORM_REQUEST_DELETE_CONFIRMATION_MESSAGE);
+  }
+
+  const existing = await getFormRequest(tenant, requestId);
+
+  if (!existing.request.archivedAt) {
+    throw new ConflictError(FORM_REQUEST_NOT_ARCHIVED_MESSAGE);
+  }
+
+  const db = getDb();
+  const organizationId = tenant.organizationId;
+  const id = existing.request.id;
+
+  const documents = await db
+    .select({
+      id: formDocuments.id,
+      status: formDocuments.status,
+      finalPdfBlobKey: formDocuments.finalPdfBlobKey,
+    })
+    .from(formDocuments)
+    .where(documentsInRequest(organizationId, id));
+
+  const documentIds = documents.map((document) => document.id);
+
+  const signatureRows =
+    documentIds.length === 0
+      ? []
+      : await db
+          .select({
+            id: signatures.id,
+            signatureBlobKey: signatures.signatureBlobKey,
+            formDocumentId: signatures.formDocumentId,
+          })
+          .from(signatures)
+          .where(
+            and(
+              eq(signatures.organizationId, organizationId),
+              inArray(signatures.formDocumentId, documentIds),
+            ),
+          );
+
+  const sessionRows = await db
+    .select({ id: formSessions.id })
+    .from(formSessions)
+    .where(
+      and(
+        eq(formSessions.organizationId, organizationId),
+        eq(formSessions.formRequestId, id),
+      ),
+    );
+
+  const sessionIds = sessionRows.map((row) => row.id);
+
+  const blobKeys = [
+    ...documents
+      .map((document) => document.finalPdfBlobKey)
+      .filter((key): key is string => Boolean(key)),
+    ...signatureRows.map((row) => row.signatureBlobKey),
+  ];
+
+  const hadSignatures = signatureRows.length > 0;
+  const hadFinalPdf = documents.some((document) => document.finalPdfBlobKey != null);
+  const hadFinalizedDocument = documents.some(
+    (document) => document.status === "finalized",
+  );
+
+  await db.transaction(async (tx) => {
+    // Audit before deletion; omit request/document/session FKs so RESTRICT
+    // parents can be removed while the delete event itself is retained.
+    await writeUserAuditEvent(tx, {
+      tenant,
+      action: AUDIT_ACTIONS.FORM_REQUEST_DELETED,
+      entityType: AUDIT_ENTITY_TYPES.FORM_REQUEST,
+      entityId: id,
+      metadata: {
+        status: existing.request.status,
+        recipientEmail: existing.request.recipientEmail,
+        recipientName: existing.request.recipientName,
+        documentIds,
+        hadSignatures,
+        hadFinalPdf,
+        hadFinalizedDocument,
+        confirmation: "typed",
+      },
+    });
+
+    await tx
+      .update(auditEvents)
+      .set({
+        formRequestId: null,
+        formDocumentId: null,
+        formSessionId: null,
+      })
+      .where(
+        and(
+          eq(auditEvents.organizationId, organizationId),
+          eq(auditEvents.formRequestId, id),
+        ),
+      );
+
+    if (documentIds.length > 0) {
+      await tx
+        .update(auditEvents)
+        .set({
+          formDocumentId: null,
+          formSessionId: null,
+        })
+        .where(
+          and(
+            eq(auditEvents.organizationId, organizationId),
+            inArray(auditEvents.formDocumentId, documentIds),
+          ),
+        );
+    }
+
+    if (sessionIds.length > 0) {
+      await tx
+        .update(auditEvents)
+        .set({ formSessionId: null })
+        .where(
+          and(
+            eq(auditEvents.organizationId, organizationId),
+            inArray(auditEvents.formSessionId, sessionIds),
+          ),
+        );
+    }
+
+    const deliveryRows = await tx
+      .select({ id: reminderDeliveries.id })
+      .from(reminderDeliveries)
+      .where(
+        and(
+          eq(reminderDeliveries.organizationId, organizationId),
+          eq(reminderDeliveries.formRequestId, id),
+        ),
+      );
+
+    const deliveryIds = deliveryRows.map((row) => row.id);
+
+    await tx
+      .update(emailEvents)
+      .set({ formRequestId: null })
+      .where(
+        and(
+          eq(emailEvents.organizationId, organizationId),
+          eq(emailEvents.formRequestId, id),
+        ),
+      );
+
+    if (deliveryIds.length > 0) {
+      await tx
+        .update(emailEvents)
+        .set({ reminderDeliveryId: null })
+        .where(
+          and(
+            eq(emailEvents.organizationId, organizationId),
+            inArray(emailEvents.reminderDeliveryId, deliveryIds),
+          ),
+        );
+    }
+
+    await tx
+      .delete(reminderDeliveries)
+      .where(
+        and(
+          eq(reminderDeliveries.organizationId, organizationId),
+          eq(reminderDeliveries.formRequestId, id),
+        ),
+      );
+
+    // Signatures/acceptances reference sessions — delete before sessions.
+    if (documentIds.length > 0) {
+      await tx
+        .delete(signatures)
+        .where(
+          and(
+            eq(signatures.organizationId, organizationId),
+            inArray(signatures.formDocumentId, documentIds),
+          ),
+        );
+
+      await tx
+        .delete(acceptances)
+        .where(
+          and(
+            eq(acceptances.organizationId, organizationId),
+            inArray(acceptances.formDocumentId, documentIds),
+          ),
+        );
+    }
+
+    // Sessions reference tokens — delete sessions before tokens.
+    await tx
+      .delete(formSessions)
+      .where(
+        and(
+          eq(formSessions.organizationId, organizationId),
+          eq(formSessions.formRequestId, id),
+        ),
+      );
+
+    await tx
+      .delete(secureTokens)
+      .where(
+        and(
+          eq(secureTokens.organizationId, organizationId),
+          eq(secureTokens.formRequestId, id),
+        ),
+      );
+
+    await tx.delete(formDocuments).where(documentsInRequest(organizationId, id));
+
+    const [deleted] = await tx
+      .delete(formRequests)
+      .where(requestInOrganization(organizationId, id))
+      .returning({ id: formRequests.id });
+
+    if (!deleted) {
+      throw new NotFoundError("Form request not found");
+    }
+  });
+
+  for (const blobKey of blobKeys) {
+    await deletePrivatePdf(blobKey).catch(() => undefined);
+  }
+
+  return { id };
 }
 
 async function hasSubmittedFill(organizationId: string, requestId: string) {

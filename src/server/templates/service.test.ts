@@ -13,12 +13,18 @@ vi.mock("@/server/pdf/fields", () => ({ extractPdfFields }));
 
 import type { TenantContext } from "@/server/auth/tenant";
 import { getDb } from "@/server/db";
-import { putPrivatePdf } from "@/server/storage/blob";
+import { deletePrivatePdf, putPrivatePdf } from "@/server/storage/blob";
 import {
+  archiveTemplate,
   createTemplate,
+  deleteTemplate,
   NO_ACROFORM_FIELDS_MESSAGE,
+  restoreTemplate,
+  TEMPLATE_HAS_FORM_DOCUMENTS_MESSAGE,
+  TEMPLATE_NOT_ARCHIVED_MESSAGE,
   updateTemplateMetadata,
 } from "@/server/templates/service";
+import { PERMANENT_DELETE_CONFIRMATION } from "@/server/templates/schema";
 
 vi.mock("@/server/storage/blob", () => ({
   putPrivatePdf: vi.fn(),
@@ -229,5 +235,210 @@ describe("updateTemplateMetadata", () => {
     });
 
     expect(selectWhere).toHaveBeenCalled();
+  });
+});
+
+const templateId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const blobKey = "org/11111111-1111-4111-8111-111111111111/templates/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.pdf";
+
+const activeTemplate = {
+  id: templateId,
+  organizationId: tenant.organizationId,
+  name: "Intake",
+  description: null,
+  category: "intake" as const,
+  status: "active" as const,
+  blobKey,
+  sha256: "abc123",
+  createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+};
+
+const archivedTemplate = {
+  ...activeTemplate,
+  status: "archived" as const,
+};
+
+function mockSelectRows(rows: unknown[]) {
+  const whereResult = {
+    limit: vi.fn().mockResolvedValue(rows),
+    then: (resolve: (value: unknown) => unknown, reject: (reason?: unknown) => unknown) =>
+      Promise.resolve(rows).then(resolve, reject),
+  };
+
+  return {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue(whereResult),
+    }),
+  };
+}
+
+describe("template lifecycle", () => {
+  beforeEach(() => {
+    writeUserAuditEvent.mockReset();
+    vi.mocked(getDb).mockReset();
+    vi.mocked(deletePrivatePdf).mockReset();
+    vi.mocked(deletePrivatePdf).mockResolvedValue(undefined as never);
+  });
+
+  describe.each([
+    ["admin", { ...tenant, role: "admin" as const }],
+    ["member", { ...tenant, role: "member" as const }],
+  ])("as %s", (_label, actor) => {
+    it("archives an active template", async () => {
+      const returning = vi.fn().mockResolvedValue([archivedTemplate]);
+      const where = vi.fn().mockReturnValue({ returning });
+      const set = vi.fn().mockReturnValue({ where });
+      const update = vi.fn().mockReturnValue({ set });
+
+      vi.mocked(getDb)
+        .mockReturnValueOnce({ select: vi.fn(() => mockSelectRows([activeTemplate])) } as never)
+        .mockReturnValueOnce({
+          transaction: vi.fn(async (cb: (tx: { update: typeof update }) => unknown) =>
+            cb({ update }),
+          ),
+        } as never);
+
+      const result = await archiveTemplate(actor, templateId);
+
+      expect(result.status).toBe("archived");
+      expect(writeUserAuditEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          action: "template.archived",
+          entityId: templateId,
+        }),
+      );
+    });
+
+    it("restores an archived template", async () => {
+      const returning = vi.fn().mockResolvedValue([activeTemplate]);
+      const where = vi.fn().mockReturnValue({ returning });
+      const set = vi.fn().mockReturnValue({ where });
+      const update = vi.fn().mockReturnValue({ set });
+
+      vi.mocked(getDb)
+        .mockReturnValueOnce({
+          select: vi.fn(() => mockSelectRows([archivedTemplate])),
+        } as never)
+        .mockReturnValueOnce({
+          transaction: vi.fn(async (cb: (tx: { update: typeof update }) => unknown) =>
+            cb({ update }),
+          ),
+        } as never);
+
+      const result = await restoreTemplate(actor, templateId);
+
+      expect(result.status).toBe("active");
+      expect(writeUserAuditEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          action: "template.restored",
+          entityId: templateId,
+        }),
+      );
+    });
+
+    it("permanently deletes an archived template without form documents", async () => {
+      const del = vi
+        .fn()
+        .mockReturnValueOnce({
+          where: vi.fn().mockResolvedValue(undefined),
+        })
+        .mockReturnValueOnce({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([{ id: templateId }]),
+          }),
+        });
+
+      vi.mocked(getDb)
+        .mockReturnValueOnce({
+          select: vi.fn(() => mockSelectRows([archivedTemplate])),
+        } as never)
+        .mockReturnValueOnce({
+          select: vi.fn(() => mockSelectRows([{ value: 0 }])),
+        } as never)
+        .mockReturnValueOnce({
+          transaction: vi.fn(async (cb: (tx: { delete: typeof del }) => unknown) =>
+            cb({ delete: del }),
+          ),
+        } as never);
+
+      const result = await deleteTemplate(
+        actor,
+        templateId,
+        PERMANENT_DELETE_CONFIRMATION,
+      );
+
+      expect(result).toEqual({ id: templateId });
+      expect(writeUserAuditEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          action: "template.deleted",
+          entityId: templateId,
+        }),
+      );
+      expect(deletePrivatePdf).toHaveBeenCalledWith(blobKey);
+    });
+  });
+
+  it("blocks permanent delete when form documents exist", async () => {
+    vi.mocked(getDb)
+      .mockReturnValueOnce({
+        select: vi.fn(() => mockSelectRows([archivedTemplate])),
+      } as never)
+      .mockReturnValueOnce({
+        select: vi.fn(() => mockSelectRows([{ value: 1 }])),
+      } as never);
+
+    await expect(
+      deleteTemplate(tenant, templateId, PERMANENT_DELETE_CONFIRMATION),
+    ).rejects.toMatchObject({
+      name: "ConflictError",
+      message: TEMPLATE_HAS_FORM_DOCUMENTS_MESSAGE,
+    });
+
+    expect(deletePrivatePdf).not.toHaveBeenCalled();
+  });
+
+  it("blocks permanent delete of an active template", async () => {
+    vi.mocked(getDb).mockReturnValueOnce({
+      select: vi.fn(() => mockSelectRows([activeTemplate])),
+    } as never);
+
+    await expect(
+      deleteTemplate(tenant, templateId, PERMANENT_DELETE_CONFIRMATION),
+    ).rejects.toMatchObject({
+      name: "ConflictError",
+      message: TEMPLATE_NOT_ARCHIVED_MESSAGE,
+    });
+  });
+
+  it("blocks permanent delete with wrong confirmation", async () => {
+    await expect(deleteTemplate(tenant, templateId, "verwijderen")).rejects.toMatchObject({
+      name: "ValidationError",
+    });
+
+    expect(getDb).not.toHaveBeenCalled();
+  });
+
+  it("blocks access for a template outside the organization", async () => {
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => mockSelectRows([])),
+    } as never);
+
+    await expect(archiveTemplate(tenant, templateId)).rejects.toMatchObject({
+      name: "NotFoundError",
+    });
+    await expect(restoreTemplate(tenant, templateId)).rejects.toMatchObject({
+      name: "NotFoundError",
+    });
+    await expect(
+      deleteTemplate(tenant, templateId, PERMANENT_DELETE_CONFIRMATION),
+    ).rejects.toMatchObject({
+      name: "NotFoundError",
+    });
+
+    expect(tenant.organizationId).not.toBe(otherOrganizationId);
   });
 });

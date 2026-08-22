@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { formDocuments, formRequests } from "@/server/db/schema";
 
 export function requestInOrganization(organizationId: string, requestId: string) {
@@ -21,3 +21,18 @@ export function documentsInRequest(organizationId: string, requestId: string) {
     eq(formDocuments.formRequestId, requestId),
   );
 }
+
+export function activeRequestsInOrganization(organizationId: string) {
+  return and(
+    eq(formRequests.organizationId, organizationId),
+    isNull(formRequests.archivedAt),
+  );
+}
+
+export function archivedRequestsInOrganization(organizationId: string) {
+  return and(
+    eq(formRequests.organizationId, organizationId),
+    isNotNull(formRequests.archivedAt),
+  );
+}
+

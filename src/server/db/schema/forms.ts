@@ -135,6 +135,7 @@ export const formRequests = pgTable(
     confirmationBodySnapshot: text("confirmation_body_snapshot"),
     invitationSentAt: utcTimestamp("invitation_sent_at"),
     clientConfirmationSentAt: utcTimestamp("client_confirmation_sent_at"),
+    archivedAt: utcTimestamp("archived_at"),
     createdAt: createdAtColumn(),
   },
   (table) => [
@@ -150,6 +151,10 @@ export const formRequests = pgTable(
     index("form_requests_organization_id_client_id_idx").on(
       table.organizationId,
       table.clientId,
+    ),
+    index("form_requests_organization_id_archived_at_idx").on(
+      table.organizationId,
+      table.archivedAt,
     ),
     index("form_requests_expires_at_idx").on(table.expiresAt),
     foreignKey({

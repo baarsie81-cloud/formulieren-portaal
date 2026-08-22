@@ -9,16 +9,24 @@ import { loadRequestMailDefaults, type RequestMailDefaults } from "@/server/form
 import {
   formRequestIdSchema,
   parseCreateFormRequest,
+  parsePermanentDeleteConfirmation,
   readCreateFormRequestFields,
 } from "@/server/forms/schema";
 import { writeCreatedTokenCookie } from "@/server/forms/cookie";
 import {
+  archiveFormRequest,
   cancelFormRequest,
   createFormRequest,
+  deleteFormRequest,
+  restoreFormRequest,
   rotateFormRequestToken,
 } from "@/server/forms/service";
 
 export type RequestFormState = {
+  error: string | null;
+};
+
+export type RequestDeleteState = {
   error: string | null;
 };
 
@@ -108,6 +116,75 @@ export async function rotateFormRequestTokenAction(formData: FormData) {
   }
 
   redirect(`/dashboard/requests/${requestId}`);
+}
+
+export async function archiveFormRequestAction(formData: FormData) {
+  const tenant = await requireDashboardContext();
+  const requestId = parseRequestIdOrNotFound(formData.get("requestId"));
+
+  try {
+    await archiveFormRequest(tenant, requestId);
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      notFound();
+    }
+
+    throw error;
+  }
+
+  redirect("/dashboard/requests");
+}
+
+export async function restoreFormRequestAction(formData: FormData) {
+  const tenant = await requireDashboardContext();
+  const requestId = parseRequestIdOrNotFound(formData.get("requestId"));
+
+  try {
+    await restoreFormRequest(tenant, requestId);
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      notFound();
+    }
+
+    throw error;
+  }
+
+  redirect("/dashboard/requests");
+}
+
+export async function deleteFormRequestAction(
+  _state: RequestDeleteState,
+  formData: FormData,
+): Promise<RequestDeleteState> {
+  const tenant = await requireDashboardContext();
+  const requestId = parseRequestIdOrNotFound(formData.get("requestId"));
+  const confirmation = parsePermanentDeleteConfirmation(
+    formData.get("confirmation"),
+  );
+
+  if (!confirmation.success) {
+    return { error: confirmation.error };
+  }
+
+  try {
+    await deleteFormRequest(tenant, requestId, confirmation.data);
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      notFound();
+    }
+
+    if (error instanceof ValidationError) {
+      return { error: error.message };
+    }
+
+    if (error instanceof ConflictError) {
+      return { error: error.message };
+    }
+
+    throw error;
+  }
+
+  redirect("/dashboard/requests?view=archived");
 }
 
 function parseRequestIdOrNotFound(value: FormDataEntryValue | null): string {

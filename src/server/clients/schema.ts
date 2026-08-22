@@ -7,6 +7,12 @@ const optionalNullableText = (max: number) =>
     .max(max)
     .transform((value) => (value === "" ? null : value));
 
+export const PERMANENT_DELETE_CONFIRMATION = "VERWIJDEREN";
+
+export const permanentDeleteConfirmationSchema = z.literal(
+  PERMANENT_DELETE_CONFIRMATION,
+);
+
 export const clientInputSchema = z.object({
   displayName: z.string().trim().min(1).max(200),
   email: z
@@ -23,6 +29,26 @@ export const clientInputSchema = z.object({
 export type ClientInput = z.infer<typeof clientInputSchema>;
 
 export const clientIdSchema = z.uuid();
+
+export function parsePermanentDeleteConfirmation(
+  value: FormDataEntryValue | null,
+): { success: true; data: typeof PERMANENT_DELETE_CONFIRMATION } | {
+  success: false;
+  error: string;
+} {
+  const parsed = permanentDeleteConfirmationSchema.safeParse(
+    typeof value === "string" ? value : "",
+  );
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: `Typ exact ${PERMANENT_DELETE_CONFIRMATION} om te bevestigen.`,
+    };
+  }
+
+  return { success: true, data: parsed.data };
+}
 
 export type ClientFormFields = {
   displayName: string;

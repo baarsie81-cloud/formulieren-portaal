@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activeClientsInOrganization,
+  archivedClientsInOrganization,
   clientInOrganization,
 } from "@/server/clients/scope";
 
@@ -19,6 +20,14 @@ describe("client query scope", () => {
 
   it("lists active clients only within one organization", () => {
     const clause = sqlValues(activeClientsInOrganization(ORGANIZATION_ID));
+
+    expect(clause).toContain(ORGANIZATION_ID);
+    expect(clause).not.toContain(CLIENT_ID);
+    expect(clause).not.toContain(OTHER_ORGANIZATION_ID);
+  });
+
+  it("lists archived clients only within one organization", () => {
+    const clause = sqlValues(archivedClientsInOrganization(ORGANIZATION_ID));
 
     expect(clause).toContain(ORGANIZATION_ID);
     expect(clause).not.toContain(CLIENT_ID);

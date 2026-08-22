@@ -1,5 +1,32 @@
 import { z } from "zod";
 
+export const PERMANENT_DELETE_CONFIRMATION = "VERWIJDEREN";
+
+export const permanentDeleteConfirmationSchema = z.literal(
+  PERMANENT_DELETE_CONFIRMATION,
+);
+
+export function parsePermanentDeleteConfirmation(
+  value: FormDataEntryValue | null,
+): { success: true; data: typeof PERMANENT_DELETE_CONFIRMATION } | {
+  success: false;
+  error: string;
+} {
+  const parsed = permanentDeleteConfirmationSchema.safeParse(
+    typeof value === "string" ? value : "",
+  );
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: `Typ exact ${PERMANENT_DELETE_CONFIRMATION} om te bevestigen.`,
+    };
+  }
+
+  return { success: true, data: parsed.data };
+}
+
+
 export const formRequestIdSchema = z.uuid();
 export const rawTokenSchema = z
   .string()

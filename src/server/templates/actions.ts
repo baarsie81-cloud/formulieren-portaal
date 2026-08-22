@@ -6,6 +6,7 @@ import { ConflictError, NotFoundError, StorageError, ValidationError } from "@/s
 import { readPdfBytes } from "@/server/pdf/validate";
 import {
   parseFieldMappings,
+  parsePermanentDeleteConfirmation,
   parseTemplateMetadata,
   readFieldMappings,
   readTemplateMetadataFields,
@@ -14,12 +15,18 @@ import {
 import {
   archiveTemplate,
   createTemplate,
+  deleteTemplate,
   NO_ACROFORM_FIELDS_MESSAGE,
+  restoreTemplate,
   updateTemplateFieldMappings,
   updateTemplateMetadata,
 } from "@/server/templates/service";
 
 export type TemplateFormState = {
+  error: string | null;
+};
+
+export type TemplateDeleteState = {
   error: string | null;
 };
 
@@ -117,6 +124,58 @@ export async function archiveTemplateAction(formData: FormData) {
   }
 
   redirect("/dashboard/templates");
+}
+
+export async function restoreTemplateAction(formData: FormData) {
+  const tenant = await requireDashboardContext();
+  const templateId = parseTemplateIdOrNotFound(formData.get("templateId"));
+
+  try {
+    await restoreTemplate(tenant, templateId);
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      notFound();
+    }
+
+    throw error;
+  }
+
+  redirect("/dashboard/templates");
+}
+
+export async function deleteTemplateAction(
+  _state: TemplateDeleteState,
+  formData: FormData,
+): Promise<TemplateDeleteState> {
+  const tenant = await requireDashboardContext();
+  const templateId = parseTemplateIdOrNotFound(formData.get("templateId"));
+  const confirmation = parsePermanentDeleteConfirmation(
+    formData.get("confirmation"),
+  );
+
+  if (!confirmation.success) {
+    return { error: confirmation.error };
+  }
+
+  try {
+    await deleteTemplate(tenant, templateId, confirmation.data);
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      notFound();
+    }
+
+    if (error instanceof ValidationError) {
+      return { error: error.message };
+    }
+
+    if (error instanceof ConflictError) {
+      return { error: error.message };
+    }
+
+    throw error;
+  }
+
+  redirect("/dashboard/templates?view=archived");
 }
 
 function parseTemplateIdOrNotFound(value: FormDataEntryValue | null): string {

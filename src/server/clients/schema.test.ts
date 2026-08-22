@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { clientIdSchema, parseClientInput } from "@/server/clients/schema";
+import {
+  clientIdSchema,
+  parseClientInput,
+  parsePermanentDeleteConfirmation,
+  PERMANENT_DELETE_CONFIRMATION,
+} from "@/server/clients/schema";
 
 describe("parseClientInput", () => {
   it("accepts a minimal valid client and normalizes email", () => {
@@ -73,5 +78,20 @@ describe("clientIdSchema", () => {
       true,
     );
     expect(clientIdSchema.safeParse("not-a-uuid").success).toBe(false);
+  });
+});
+
+describe("parsePermanentDeleteConfirmation", () => {
+  it("accepts exact VERWIJDEREN", () => {
+    expect(parsePermanentDeleteConfirmation(PERMANENT_DELETE_CONFIRMATION)).toEqual({
+      success: true,
+      data: PERMANENT_DELETE_CONFIRMATION,
+    });
+  });
+
+  it("rejects wrong casing, empty, and partial values", () => {
+    for (const value of ["verwijderen", "Verwijderen", "VERWIJDER", "", null]) {
+      expect(parsePermanentDeleteConfirmation(value).success).toBe(false);
+    }
   });
 });
