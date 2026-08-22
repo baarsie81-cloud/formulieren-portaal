@@ -2,7 +2,11 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { MAX_TEMPLATE_PDF_BYTES } from "@/lib/constants";
+import {
+  DOCUMENT_CATEGORIES,
+  DOCUMENT_CATEGORY_LABELS,
+  MAX_TEMPLATE_PDF_BYTES,
+} from "@/lib/constants";
 import {
   createTemplateAction,
   type TemplateFormState,
@@ -32,6 +36,24 @@ export function TemplateUploadForm({ storageConfigured }: { storageConfigured: b
       ) : null}
 
       <Field id="name" name="name" label="Naam" required />
+      <div className="flex flex-col gap-1">
+        <label htmlFor="category" className="text-sm font-medium text-neutral-800">
+          Formuliertype
+        </label>
+        <select
+          id="category"
+          name="category"
+          required
+          defaultValue="intake"
+          className="rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900"
+        >
+          {DOCUMENT_CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {DOCUMENT_CATEGORY_LABELS[category]}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="description" className="text-sm font-medium text-neutral-800">
           Omschrijving

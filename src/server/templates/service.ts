@@ -110,6 +110,7 @@ export async function createTemplate(
           organizationId: tenant.organizationId,
           name: input.name,
           description: input.description,
+          category: input.category,
           blobKey,
           sha256,
           status: "active",
@@ -176,6 +177,10 @@ export async function updateTemplateMetadata(
     changedFields.push("description");
   }
 
+  if (existing.category !== input.category) {
+    changedFields.push("category");
+  }
+
   if (changedFields.length === 0) {
     return existing;
   }
@@ -186,6 +191,7 @@ export async function updateTemplateMetadata(
       .set({
         name: input.name,
         description: input.description,
+        category: input.category,
       })
       .where(templateInOrganization(tenant.organizationId, existing.id))
       .returning();

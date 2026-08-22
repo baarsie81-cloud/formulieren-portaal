@@ -71,6 +71,7 @@ export default async function TemplateDetailPage({
             defaultValues={{
               name: template.name,
               description: template.description,
+              category: template.category,
             }}
           />
 

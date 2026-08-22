@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DOCUMENT_CATEGORY_LABELS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/datetime";
 import { requireDashboardContext } from "@/server/auth/guard";
 import { listTemplates } from "@/server/templates/service";
@@ -34,6 +35,7 @@ export default async function TemplatesPage() {
             <thead className="border-b border-neutral-200 bg-neutral-50 text-neutral-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Naam</th>
+                <th className="px-4 py-3 font-medium">Formuliertype</th>
                 <th className="px-4 py-3 font-medium">Inhoudsversie</th>
                 <th className="px-4 py-3 font-medium">Toegevoegd</th>
               </tr>
@@ -48,6 +50,9 @@ export default async function TemplatesPage() {
                     >
                       {template.name}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3 text-neutral-700">
+                    {DOCUMENT_CATEGORY_LABELS[template.category]}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-neutral-700">
                     {template.sha256.slice(0, 12)}
