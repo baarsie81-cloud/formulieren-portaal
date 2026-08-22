@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { OrganizationSignatureForm } from "@/components/organization-signature-form";
 import { requireDashboardContext } from "@/server/auth/guard";
 import { isBlobConfigured } from "@/server/env";
@@ -21,6 +22,20 @@ export default async function PraktijkPage() {
       <div className="rounded-lg border border-neutral-200 bg-white p-4">
         <p className="text-sm font-medium text-neutral-800">Organisatie</p>
         <p className="mt-1 text-sm text-neutral-700">{profile.organizationName}</p>
+      </div>
+
+      <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <h2 className="text-lg font-semibold tracking-tight">E-mailsjablonen</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Beheer de standaardteksten voor intake- en contractmails van deze
+          organisatie.
+        </p>
+        <Link
+          href="/dashboard/praktijk/e-mail"
+          className="mt-3 inline-flex text-sm font-medium text-neutral-900 underline underline-offset-2 hover:text-neutral-700"
+        >
+          E-mailsjablonen beheren
+        </Link>
       </div>
 
       <div className="flex flex-col gap-4">
