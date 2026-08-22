@@ -29,6 +29,13 @@
       "when": 1787409623592,
       "tag": "0003_mailflow_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787428657135,
+      "tag": "0004_form_request_lifecycle",
+      "breakpoints": true
     }
   ]
 }

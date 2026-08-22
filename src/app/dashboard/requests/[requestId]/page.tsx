@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArchiveRequestButton } from "@/components/archive-request-button";
 import { CancelRequestButton } from "@/components/cancel-request-button";
 import { CopyFormLink } from "@/components/copy-form-link";
+import { DeleteRequestButton } from "@/components/delete-request-button";
+import { RestoreRequestButton } from "@/components/restore-request-button";
 import { RotateLinkButton } from "@/components/rotate-link-button";
 import { DOCUMENT_FIELD_TYPE_LABELS, FORM_REQUEST_STATUS_LABELS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/datetime";
@@ -40,12 +43,16 @@ export default async function RequestDetailPage({
   const origin = await getPublicOrigin();
   const snapshot = parseFieldsSchemaSnapshot(detail.document.fieldsSchemaSnapshot) ?? [];
   const values = asFieldValueMap(detail.document.fieldValues);
+  const archived = detail.isArchived;
 
   return (
     <section className="flex flex-col gap-6">
       <div>
         <p className="text-sm text-neutral-500">
-          <Link href="/dashboard/requests" className="hover:underline">
+          <Link
+            href={archived ? "/dashboard/requests?view=archived" : "/dashboard/requests"}
+            className="hover:underline"
+          >
             Verzoeken
           </Link>
         </p>
@@ -53,6 +60,7 @@ export default async function RequestDetailPage({
         <p className="mt-1 text-neutral-600">
           {detail.request.recipientEmail} · {detail.templateName} ·{" "}
           {FORM_REQUEST_STATUS_LABELS[detail.request.status]}
+          {archived ? " · Gearchiveerd" : null}
         </p>
         <p className="mt-1 text-sm text-neutral-500">
           Aangemaakt {formatDateTime(detail.request.createdAt)} · Geldig tot{" "}
@@ -145,6 +153,26 @@ export default async function RequestDetailPage({
         <div className="flex flex-wrap gap-3">
           {detail.canRotateToken ? <RotateLinkButton requestId={detail.request.id} /> : null}
           {detail.canCancel ? <CancelRequestButton requestId={detail.request.id} /> : null}
+        </div>
+      ) : null}
+
+      {detail.canArchive ? (
+        <ArchiveRequestButton requestId={detail.request.id} />
+      ) : null}
+
+      {detail.canRestore ? (
+        <div className="flex flex-col gap-4">
+          <p className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
+            Dit verzoek is gearchiveerd.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <RestoreRequestButton requestId={detail.request.id} />
+          </div>
+          <DeleteRequestButton
+            requestId={detail.request.id}
+            recipientName={detail.request.recipientName}
+            isFinalized={detail.isFinalized}
+          />
         </div>
       ) : null}
     </section>
